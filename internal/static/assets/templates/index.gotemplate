@@ -1,5 +1,8 @@
 <html>
-<link rel="stylesheet" href="static/mvp.css">
+<head>
+    <link rel="stylesheet" href="static/mvp.css">
+    <title>Ingress Dashboard</title>
+</head>
 <body>
 {{with .User}}
     <div class="top">
@@ -77,6 +80,7 @@
         width: 1em;
         margin-right: 1em;
     }
+
     .top {
         display: flex;
         justify-content: space-between;
