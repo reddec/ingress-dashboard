@@ -1,3 +1,10 @@
+---
+layout: default
+title: Installation
+nav_order: 0
+has_children: false
+---
+
 # Installation
 
 Kubernetes with RBAC
