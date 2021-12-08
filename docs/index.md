@@ -47,7 +47,9 @@ ingress-dashboard relies on annotations in each [Ingress](https://kubernetes.io/
 
 All annotations are optional.
 
-### `ingress-dashboard/description`
+### Description
+
+Annotation: `ingress-dashboard/description`
 
 Defines custom description for the ingress. If not defined, no description will be shown.
 
@@ -76,7 +78,9 @@ spec:
               number: 8080
 ```
 
-### `ingress-dashboard/logo-url`
+### Logo URL
+
+Annotation: `ingress-dashboard/logo-url`
 
 Defines custom logo URL for the ingress. It supports absolute URL (ex: `https://example.com/favicon.ico`) or
 relative URL (ex: `/favicon.ico`). Relative URL should start from `/` and will be appended to the first endpoint in spec.
@@ -116,7 +120,9 @@ If logo URL not defined, ingress-dashboard will try to detect it automatically:
     * `alternate icon`
 * in case no logo URL found in HTML, ingress-dashboard will check `<url>/favicon.ico` URL and in case of 200 code response will use it as logo-url
 
-### `ingress-dashboard/title`
+### Title
+
+Annotation: `ingress-dashboard/title`
 
 Defines custom service title. If not defined - ingress name will be used.
 
