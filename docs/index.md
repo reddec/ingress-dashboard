@@ -142,7 +142,7 @@ spec:
               number: 8080
 ```
 
-## Authorization
+# Authorization
 
 By-default, dashboard is not protected and available for everyone.
 
