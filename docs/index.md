@@ -10,7 +10,8 @@ Supports only v1/Ingress.
 
 Kubernetes with RBAC
 
-    kubectl apply -f https://github.com/reddec/ingress-dashboard/releases/latest/download/ingress-dashboard.yaml
+    curl -L https://github.com/reddec/ingress-dashboard/releases/latest/download/ingress-dashboard.yaml | \
+    kubectl apply -f -
 
 Optionally deploy use Ingress to open access to dashboard. Read [authorization](#authorization) how to secure access.
 
