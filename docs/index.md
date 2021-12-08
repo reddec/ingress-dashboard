@@ -4,7 +4,7 @@ Automatic dashboard generation for Ingress objects.
 
 Supports only v1/Ingress.
 
-## Installation
+# Installation
 
 Kubernetes with RBAC
 
@@ -39,15 +39,15 @@ spec:
                   number: 8080
 ```
 
-## Configuration
+# Configuration
 
 ingress-dashboard relies on annotations in each [Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/) object to configure dashboard.
 
-### Annotation
+## Annotation
 
 All annotations are optional.
 
-#### `ingress-dashboard/description`
+### `ingress-dashboard/description`
 
 Defines custom description for the ingress. If not defined, no description will be shown.
 
@@ -76,7 +76,7 @@ spec:
               number: 8080
 ```
 
-#### `ingress-dashboard/logo-url`
+### `ingress-dashboard/logo-url`
 
 Defines custom logo URL for the ingress. It supports absolute URL (ex: `https://example.com/favicon.ico`) or
 relative URL (ex: `/favicon.ico`). Relative URL should start from `/` and will be appended to the first endpoint in spec.
@@ -116,7 +116,7 @@ If logo URL not defined, ingress-dashboard will try to detect it automatically:
     * `alternate icon`
 * in case no logo URL found in HTML, ingress-dashboard will check `<url>/favicon.ico` URL and in case of 200 code response will use it as logo-url
 
-#### `ingress-dashboard/title`
+### `ingress-dashboard/title`
 
 Defines custom service title. If not defined - ingress name will be used.
 
@@ -153,7 +153,7 @@ To restrict access ingress-dashboard supports following methods:
 
 Regardless of selected authorization ALWAYS use secured connection (ie: TLS/HTTPS)
 
-### Basic authorization
+## Basic authorization
 
 [Basic authorization](https://datatracker.ietf.org/doc/html/rfc7617) assumes static username and password.
 It is not the best option from security perspective, but good enough for internal usage or for testing.
@@ -168,7 +168,7 @@ To enable basic authorization, provide following environment variables:
 
 Password is critical value so consider using [secrets](https://kubernetes.io/docs/concepts/configuration/secret/) to store it.
 
-### OIDC
+## OIDC
 
 [OIDC](https://openid.net/connect/) is industry standard for OAuth 2 Identity Providers (IDP) integration.
 
