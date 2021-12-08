@@ -1,4 +1,4 @@
-FROM scratch
+FROM alpine:3.15
 EXPOSE 8080
 ENTRYPOINT ["/bin/ingress-dashboard"]
 ADD ingress-dashboard /bin/
