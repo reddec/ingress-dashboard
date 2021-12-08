@@ -1,0 +1,130 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ingress-dashboard
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ingress-dashboard
+  namespace: ingress-dashboard
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ingress-dashboard
+rules:
+  - apiGroups:
+      - ''
+    resources:
+      - namespaces
+    verbs:
+      - get
+  - apiGroups:
+      - networking.k8s.io
+    resources:
+      - ingresses
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ingress-dashboard
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ingress-dashboard
+subjects:
+  - kind: ServiceAccount
+    name: ingress-dashboard
+    namespace: ingress-dashboard
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ingress-dashboard
+  namespace: ingress-dashboard
+rules:
+  - apiGroups:
+      - ''
+    resources:
+      - namespaces
+    verbs:
+      - get
+  - apiGroups:
+      - networking.k8s.io
+    resources:
+      - ingresses
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ingress-dashboard
+  namespace: ingress-dashboard
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ingress-dashboard
+subjects:
+  - kind: ServiceAccount
+    name: ingress-nginx
+    namespace: ingress-dashboard
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard
+  namespace: ingress-dashboard
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+  selector:
+    app: dashboard
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: dashboard
+  name: dashboard
+  namespace: ingress-dashboard
+spec:
+  selector:
+    matchLabels:
+      app: dashboard
+  template:
+    metadata:
+      labels:
+       app: dashboard
+    spec:
+      containers:
+        - name: dashboard
+          image: IMAGE_TO_REPLACE
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - NET_BIND_SERVICE
+            runAsUser: 101
+          env:
+            - name: AUTH
+              value: "none"
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+      serviceAccountName: ingress-dashboard

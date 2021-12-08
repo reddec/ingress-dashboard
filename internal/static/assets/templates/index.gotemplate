@@ -1,0 +1,86 @@
+<html>
+<link rel="stylesheet" href="static/mvp.css">
+<body>
+{{with .User}}
+    <div class="top">
+        <span>Hello, {{.Name}}!</span>
+        <a href="/logout">Logout</a>
+    </div>
+{{end}}
+<div class="card-holder">
+    {{range $ingress := .Ingresses}}
+        <div class="card">
+            <div class="title">
+                {{with $ingress.Logo}}
+                    <h2>
+                        <img src="{{.}}" alt="{{$ingress.ID}}">
+                    </h2>
+                {{end}}
+                {{with $ingress.Label}}
+                    <h2>{{.}}</h2>
+                {{end}}
+            </div>
+            {{with $ingress.Namespace}}
+                <small>from {{.}}</small>
+            {{end}}
+            {{with $ingress.Description}}
+                <p>{{.}}</p>
+            {{end}}
+            {{range $url := $ingress.URLs}}
+                <p>
+                    <a href="{{$url}}" target="_blank">{{$url}}</a>
+                </p>
+            {{end}}
+        </div>
+    {{end}}
+</div>
+</body>
+<style>
+    .card-holder {
+        display: flex;
+        flex-wrap: wrap;
+    }
+
+    .card {
+        margin: 1em 0.5em 1em 0.5em;
+        padding: 0.5em 1em 0.5em 1em;
+        border-radius: 1em;
+        border: #555555 solid 1px;
+        max-width: calc(100% - 2em - 1em);
+    }
+
+    @media only screen and (max-width: 600px) {
+        .card {
+            width: calc(100% - 2em - 1em);
+        }
+    }
+
+    .card a {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+    }
+
+    .card p {
+        max-width: 100%;
+    }
+
+    .title {
+        display: flex;
+        flex-wrap: nowrap;
+        align-items: center;
+    }
+
+    .title img {
+        height: 1em;
+        width: 1em;
+        margin-right: 1em;
+    }
+    .top {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.5em;
+    }
+</style>
+</html>

@@ -1,0 +1,4 @@
+FROM scratch
+EXPOSE 8080
+ENTRYPOINT ["/bin/ingress-dashboard"]
+ADD ingress-dashboard /bin/

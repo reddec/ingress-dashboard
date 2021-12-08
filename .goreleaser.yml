@@ -1,0 +1,37 @@
+project_name: ingress-dashboard
+before:
+  hooks:
+    - mkdir -p build-temp
+    - sh -c 'sed "s|IMAGE_TO_REPLACE|ghcr.io/reddec/{{ .ProjectName }}:{{ .Tag }}|g"  ingress-dashboard.yaml > build-temp/ingress-dashboard.yaml'
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - arm64
+      - amd64
+    main: ./cmd/ingress-dashboard
+release:
+  extra_files:
+    - glob: build-temp/ingress-dashboard.yaml
+
+checksum:
+  name_template: 'checksums.txt'
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+dockers:
+  - dockerfile: Dockerfile.release
+    image_templates:
+      - "ghcr.io/reddec/{{ .ProjectName }}:{{ .Tag }}"
+      - "ghcr.io/reddec/{{ .ProjectName }}:v{{ .Major }}"
+      - "ghcr.io/reddec/{{ .ProjectName }}:v{{ .Major }}.{{ .Minor }}"
+      - "ghcr.io/reddec/{{ .ProjectName }}:latest"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
