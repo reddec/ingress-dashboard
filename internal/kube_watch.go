@@ -92,6 +92,7 @@ func (kw *kubeWatcher) runLogoFetcher(ctx context.Context) {
 				}
 			}
 		}
+		kw.receiver.Set(kw.items())
 		select {
 		case <-ctx.Done():
 			return
@@ -115,6 +116,11 @@ func (kw *kubeWatcher) upsertIngress(obj interface{}) {
 
 	kw.lock.Lock()
 	defer kw.lock.Unlock()
+	// preserve discovered logo
+	oldLogoURL := kw.cache[ingress.UID].LogoURL
+	if oldLogoURL != "" && ingress.LogoURL == "" {
+		ingress.LogoURL = oldLogoURL
+	}
 	kw.cache[ingress.UID] = ingress
 }
 
