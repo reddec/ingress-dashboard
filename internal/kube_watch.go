@@ -2,7 +2,6 @@ package internal
 
 import (
 	"context"
-	"log"
 	"sort"
 	"sync"
 	"time"
@@ -10,7 +9,6 @@ import (
 	v12 "k8s.io/api/networking/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
-	cache2 "k8s.io/client-go/tools/cache"
 )
 
 const (
@@ -20,68 +18,127 @@ const (
 	syncInterval    = 30 * time.Second
 )
 
-func WatchKubernetes(ctx context.Context, clientset *kubernetes.Clientset, reciever interface {
+type Receiver interface {
+	Set(ingresses []Ingress)
+}
+
+func WatchKubernetes(global context.Context, clientset *kubernetes.Clientset, reciever interface {
 	Set(ingresses []Ingress)
 }) {
-	var cache = make(map[string]Ingress)
-	var lock sync.Mutex
-	var toDetect = make(chan Ingress, 1024)
-	defer close(toDetect)
+	ctx, cancel := context.WithCancel(global)
+	defer cancel()
 
-	go runLogoFetcher(ctx, toDetect, func(ing Ingress) {
-		lock.Lock()
-		defer lock.Unlock()
-		if v, ok := cache[ing.UID]; ok && v.LogoURL == "" {
-			v.LogoURL = ing.LogoURL
-			cache[ing.UID] = v
-			reciever.Set(toList(cache))
+	watcher := newWatcher(reciever)
+
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer cancel()
+		watcher.runWatcher(ctx, clientset)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer cancel()
+		watcher.runLogoFetcher(ctx)
+	}()
+	wg.Wait()
+}
+
+func newWatcher(receiver Receiver) *kubeWatcher {
+	return &kubeWatcher{
+		cache:      make(map[string]Ingress),
+		receiver:   receiver,
+		checkLogos: make(chan struct{}, 1),
+	}
+}
+
+type kubeWatcher struct {
+	cache      map[string]Ingress
+	lock       sync.RWMutex
+	receiver   Receiver
+	checkLogos chan struct{}
+}
+
+func (kw *kubeWatcher) OnAdd(obj interface{}) {
+	kw.upsertIngress(obj)
+}
+
+func (kw *kubeWatcher) OnUpdate(_, newObj interface{}) {
+	kw.upsertIngress(newObj)
+}
+
+func (kw *kubeWatcher) OnDelete(obj interface{}) {
+	defer kw.notify()
+
+	kw.lock.Lock()
+	defer kw.lock.Unlock()
+	ing := obj.(*v12.IngressClass)
+	delete(kw.cache, string(ing.UID))
+}
+
+func (kw *kubeWatcher) runLogoFetcher(ctx context.Context) {
+	for {
+		for _, ing := range kw.items() {
+			if ing.LogoURL == "" && len(ing.URLs) > 0 {
+				ing.LogoURL = detectIconURL(ctx, ing.URLs[0])
+				if ing.LogoURL != "" {
+					kw.updateLogo(ing)
+				}
+			}
 		}
-	})
+		select {
+		case <-ctx.Done():
+			return
+		case <-kw.checkLogos:
+		}
+	}
+}
+
+func (kw *kubeWatcher) runWatcher(ctx context.Context, clientset *kubernetes.Clientset) {
 	informerFactory := informers.NewSharedInformerFactory(clientset, syncInterval)
 	informer := informerFactory.Networking().V1().Ingresses().Informer()
 
-	informer.AddEventHandler(cache2.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			ing := obj.(*v12.Ingress)
-			ingress := inspectIngress(ing)
-
-			lock.Lock()
-			defer lock.Unlock()
-			cache[string(ing.UID)] = ingress
-
-			log.Println("new ingress", ing.UID, ":", ing.Name, "in", ing.Namespace)
-			reciever.Set(toList(cache))
-			select {
-			case toDetect <- ingress:
-			default:
-			}
-		},
-		UpdateFunc: func(_, newObj interface{}) {
-			ing := newObj.(*v12.Ingress)
-			ingress := inspectIngress(ing)
-
-			lock.Lock()
-			defer lock.Unlock()
-			cache[string(ing.UID)] = ingress
-
-			log.Println("updated ingress", ing.UID, ":", ing.Name, "in", ing.Namespace)
-			reciever.Set(toList(cache))
-			select {
-			case toDetect <- ingress:
-			default:
-			}
-		},
-		DeleteFunc: func(obj interface{}) {
-			ing := obj.(*v12.IngressClass)
-
-			lock.Lock()
-			defer lock.Unlock()
-			delete(cache, string(ing.UID))
-
-			log.Println("ingress removed", ing.UID, ":", ing.Name, "in", ing.Namespace)
-		},
-	})
+	informer.AddEventHandler(kw)
 	informer.Run(ctx.Done())
+}
+
+func (kw *kubeWatcher) upsertIngress(obj interface{}) {
+	defer kw.notify()
+	ing := obj.(*v12.Ingress)
+	ingress := inspectIngress(ing)
+
+	kw.lock.Lock()
+	defer kw.lock.Unlock()
+	kw.cache[ingress.UID] = ingress
+}
+
+func (kw *kubeWatcher) notify() {
+	kw.receiver.Set(kw.items())
+	select {
+	case kw.checkLogos <- struct{}{}:
+	default:
+	}
+}
+
+func (kw *kubeWatcher) items() []Ingress {
+	kw.lock.RLock()
+	defer kw.lock.RUnlock()
+	return toList(kw.cache)
+}
+
+func (kw *kubeWatcher) updateLogo(ingress Ingress) {
+	kw.lock.Lock()
+	defer kw.lock.Unlock()
+	old, exists := kw.cache[ingress.UID]
+	if !exists || old.LogoURL != "" {
+		return
+	}
+	old.LogoURL = ingress.LogoURL
+	kw.cache[ingress.UID] = old
 }
 
 func inspectIngress(ing *v12.Ingress) Ingress {
@@ -125,15 +182,4 @@ func toURLs(spec v12.IngressSpec) []string {
 	}
 
 	return urls
-}
-
-func runLogoFetcher(ctx context.Context, ch <-chan Ingress, fn func(ing Ingress)) {
-	for ing := range ch {
-		if ing.LogoURL == "" && len(ing.URLs) > 0 {
-			ing.LogoURL = detectIconURL(ctx, ing.URLs[0])
-			if ing.LogoURL != "" {
-				fn(ing)
-			}
-		}
-	}
 }
