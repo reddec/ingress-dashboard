@@ -1,5 +1,3 @@
-# ingress-dashboard
-
 ![k-id](https://user-images.githubusercontent.com/6597086/145367873-ae85fba7-d3aa-47ba-8100-1ce6518aa463.png)
 
 Automatic dashboard generation for Ingress objects.
