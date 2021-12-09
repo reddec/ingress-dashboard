@@ -16,6 +16,13 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+	builtBy = "unknown"
+)
+
 type Config struct {
 	httpserver.Server
 	Master        string `long:"master" env:"MASTER" description:"Kuberenetes master URL"`
@@ -32,6 +39,9 @@ type Config struct {
 func main() {
 	var config Config
 	parser := flags.NewParser(&config, flags.Default)
+	parser.ShortDescription = "Kubernetes-native dashboard for ingress"
+	parser.LongDescription = fmt.Sprintf("Kubernetes-native dashboard for ingress\ningress-dashboard %s, commit %s, built at %s by %s\nAuthor: Aleksandr Baryshnikov <owner@reddec.net>", version, commit, date, builtBy)
+
 	if _, err := parser.Parse(); err != nil {
 		os.Exit(1)
 	}
