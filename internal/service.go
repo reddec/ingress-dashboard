@@ -61,8 +61,10 @@ func New() *Service {
 		page:   template.Must(template.ParseFS(static.Templates, "assets/templates/*.gotemplate")),
 		router: router,
 	}
+	sfs := http.FileServer(http.FS(static.Static()))
 	router.HandleFunc("/", svc.getIndex)
-	router.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.FS(static.Static()))))
+	router.Handle("/static/", http.StripPrefix("/static", sfs))
+	router.Handle("/favicon.ico", sfs)
 	return svc
 }
 

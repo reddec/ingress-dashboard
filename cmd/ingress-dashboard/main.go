@@ -81,6 +81,7 @@ func run(cfg Config) error {
 	}()
 
 	http.Handle("/", secured)
+	http.Handle("/favicon.ico", svc)
 	return cfg.Run(ctx)
 }
 
