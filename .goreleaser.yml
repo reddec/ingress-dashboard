@@ -2,7 +2,7 @@ project_name: ingress-dashboard
 before:
   hooks:
     - mkdir -p build-temp
-    - sh -c 'sed "s|IMAGE_TO_REPLACE|ghcr.io/reddec/{{ .ProjectName }}:{{ .Tag }}|g"  ingress-dashboard.yaml > build-temp/ingress-dashboard.yaml'
+    - sh -c 'sed "s|IMAGE_TO_REPLACE|ghcr.io/reddec/{{ .ProjectName }}:{{ .Version }}|g"  ingress-dashboard.yaml > build-temp/ingress-dashboard.yaml'
 builds:
   - env:
       - CGO_ENABLED=0
