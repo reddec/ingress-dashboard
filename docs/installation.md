@@ -3,6 +3,8 @@ nav_order: 1
 ---
 # Installation
 
+Docker image supports amd64 and arm64 architectures.
+
 Kubernetes with RBAC
 
     curl -L https://github.com/reddec/ingress-dashboard/releases/latest/download/ingress-dashboard.yaml | \
@@ -23,6 +25,7 @@ metadata:
     kubernetes.io/ingress.class: "nginx" # may vary
     ingress-dashboard/title: "Dashboard"
     ingress-dashboard/description: "Dashboard of ingress resources"
+    ingress-dashboard/logo-url: /favicon.ico
 spec:
   rules:
     - host: dashboard.example.com
