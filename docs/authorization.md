@@ -56,3 +56,41 @@ To enable OIDC authorization, provide following environment variables:
   use [secrets](https://kubernetes.io/docs/concepts/configuration/secret/) to store)
 * `SERVER_URL=<public URL>` - (optional) URL of ingress-dashboard, used for redirects. If not set, dashboard will rely
   on Host header.
+
+
+Example
+
+
+```yaml
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  # ...
+  name: dashboard
+  namespace: ingress-dashboard
+spec:
+  # ...
+  template:
+    # ...
+    spec:
+      containers:
+        - name: dashboard
+          # ...
+          env:
+            # ...
+            - name: AUTH
+              value: "oidc"
+            - name: CLIENT_ID
+              value: my-client-id-in-idp
+            - name: CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: my-secret-storage
+                  key: client_secret
+            - name: OIDC_ISSUER
+              value: https://my-idp.example.com/
+            - name: SERVER_URL
+              value: https://example.com
+          # ...
+```
