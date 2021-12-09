@@ -1,5 +1,5 @@
 ---
-parent: configuration
+parent: Configuration
 ---
 
 ## Static source
