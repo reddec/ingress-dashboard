@@ -44,7 +44,8 @@ spec:
 
 # Configuration
 
-ingress-dashboard relies on annotations in each [Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/) object to configure dashboard.
+ingress-dashboard relies on annotations in
+each [Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/) object to configure dashboard.
 
 ## Annotation
 
@@ -69,24 +70,24 @@ metadata:
       This is demo service
 spec:
   rules:
-  - host: demo.example.com
-    http:
-      paths:
-      - path: /foo/
-        pathType: Prefix
-        backend:
-          service:
-            name: my-service
-            port:
-              number: 8080
+    - host: demo.example.com
+      http:
+        paths:
+          - path: /foo/
+            pathType: Prefix
+            backend:
+              service:
+                name: my-service
+                port:
+                  number: 8080
 ```
 
 ### Logo URL
 
 Annotation: `ingress-dashboard/logo-url`
 
-Defines custom logo URL for the ingress. It supports absolute URL (ex: `https://example.com/favicon.ico`) or
-relative URL (ex: `/favicon.ico`). Relative URL should start from `/` and will be appended to the first endpoint in spec.
+Defines custom logo URL for the ingress. It supports absolute URL (ex: `https://example.com/favicon.ico`) or relative
+URL (ex: `/favicon.ico`). Relative URL should start from `/` and will be appended to the first endpoint in spec.
 
 Example:
 
@@ -100,28 +101,30 @@ metadata:
     ingress-dashboard/logo-url: "/favicon.ico"
 spec:
   rules:
-  - host: demo.example.com
-    http:
-      paths:
-      - path: /foo/
-        pathType: Prefix
-        backend:
-          service:
-            name: my-service
-            port:
-              number: 8080
+    - host: demo.example.com
+      http:
+        paths:
+          - path: /foo/
+            pathType: Prefix
+            backend:
+              service:
+                name: my-service
+                port:
+                  number: 8080
 ```
 
 Logo URL will point to `http://demo.example.com/foo/favicon.ico`
 
 If logo URL not defined, ingress-dashboard will try to detect it automatically:
 
-* it will get root page for each defined endpoint, parse it as HTML and use `href` attribute as logo url for tags `link`with attribute `rel` equal to
+* it will get root page for each defined endpoint, parse it as HTML and use `href` attribute as logo url for tags `link`
+  with attribute `rel` equal to
     * `apple-touch-icon`
     * `shortcut icon`
     * `icon`
     * `alternate icon`
-* in case no logo URL found in HTML, ingress-dashboard will check `<url>/favicon.ico` URL and in case of 200 code response will use it as logo-url
+* in case no logo URL found in HTML, ingress-dashboard will check `<url>/favicon.ico` URL and in case of 200 code
+  response will use it as logo-url
 
 ### Title
 
@@ -139,17 +142,25 @@ metadata:
     ingress-dashboard/title: Demo App
 spec:
   rules:
-  - host: demo.example.com
-    http:
-      paths:
-      - path: /foo/
-        pathType: Prefix
-        backend:
-          service:
-            name: my-service
-            port:
-              number: 8080
+    - host: demo.example.com
+      http:
+        paths:
+          - path: /foo/
+            pathType: Prefix
+            backend:
+              service:
+                name: my-service
+                port:
+                  number: 8080
 ```
+
+### Hide
+
+Annotation: `ingress-dashboard/hide`
+
+Accepts `true` or `false` (default) string value.
+
+If it set to `true`, ingress-dashboard will not render it in UI and will skip logo-url detection logic.
 
 # Authorization
 
@@ -164,8 +175,8 @@ Regardless of selected authorization ALWAYS use secured connection (ie: TLS/HTTP
 
 ## Basic authorization
 
-[Basic authorization](https://datatracker.ietf.org/doc/html/rfc7617) assumes static username and password.
-It is not the best option from security perspective, but good enough for internal usage or for testing.
+[Basic authorization](https://datatracker.ietf.org/doc/html/rfc7617) assumes static username and password. It is not the
+best option from security perspective, but good enough for internal usage or for testing.
 
 For proper protection and for enterprise usage consider using OIDC.
 
@@ -175,7 +186,8 @@ To enable basic authorization, provide following environment variables:
 * `BASIC_USER=<your user name>` - desired user name (commonly `admin`)
 * `BASIC_PASSWORD=<password>` - desired user password
 
-Password is critical value so consider using [secrets](https://kubernetes.io/docs/concepts/configuration/secret/) to store it.
+Password is critical value so consider using [secrets](https://kubernetes.io/docs/concepts/configuration/secret/) to
+store it.
 
 ## OIDC
 
@@ -201,5 +213,7 @@ To enable OIDC authorization, provide following environment variables:
 * `AUTH=oidc` - switch auth mode to OIDC
 * `OIDC_ISSUER=<issuer-url>` - IDP URL (ex: for Keycloak it will be `https://<domain>/auth/realms/<realm>`)
 * `CLIENT_ID=<client-id>` - client ID from IDP
-* `CLIENT_SECRET=<password>` - client secret from IDP (sensitive information - use [secrets](https://kubernetes.io/docs/concepts/configuration/secret/) to store)
-* `SERVER_URL=<public URL>` - (optional) URL of ingress-dashboard, used for redirects. If not set, dashboard will rely on Host header.
+* `CLIENT_SECRET=<password>` - client secret from IDP (sensitive information -
+  use [secrets](https://kubernetes.io/docs/concepts/configuration/secret/) to store)
+* `SERVER_URL=<public URL>` - (optional) URL of ingress-dashboard, used for redirects. If not set, dashboard will rely
+  on Host header.

@@ -17,6 +17,7 @@ type Ingress struct {
 	Name        string   `yaml:"name"`
 	Namespace   string   `yaml:"namespace"`
 	Description string   `yaml:"description"`
+	Hide        bool     `yaml:"hide"`
 	URLs        []string `yaml:"urls"`
 	LogoURL     string   `yaml:"logo_url"`
 }
@@ -79,7 +80,17 @@ func (svc *Service) ServeHTTP(writer http.ResponseWriter, request *http.Request)
 func (svc *Service) getIndex(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Set("Content-Type", "text/html")
 	_ = svc.page.Execute(writer, UIContext{
-		Ingresses: svc.Get(),
+		Ingresses: visibleIngresses(svc.Get()),
 		User:      auth.UserFromContext(request.Context()),
 	})
+}
+
+func visibleIngresses(list []Ingress) []Ingress {
+	cp := make([]Ingress, 0, len(list))
+	for _, ing := range list {
+		if !ing.Hide {
+			cp = append(cp, ing)
+		}
+	}
+	return cp
 }

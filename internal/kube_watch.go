@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -15,6 +16,7 @@ const (
 	AnnoDescription = "ingress-dashboard/description"
 	AnnoLogoURL     = "ingress-dashboard/logo-url"
 	AnnoTitle       = "ingress-dashboard/title"
+	AnnoHide        = "ingress-dashboard/hide" // do not display ingress in dashboard
 	syncInterval    = 30 * time.Second
 )
 
@@ -83,7 +85,7 @@ func (kw *kubeWatcher) OnDelete(obj interface{}) {
 func (kw *kubeWatcher) runLogoFetcher(ctx context.Context) {
 	for {
 		for _, ing := range kw.items() {
-			if ing.LogoURL == "" && len(ing.URLs) > 0 {
+			if !ing.Hide && ing.LogoURL == "" && len(ing.URLs) > 0 {
 				ing.LogoURL = detectIconURL(ctx, ing.URLs[0])
 				if ing.LogoURL != "" {
 					kw.updateLogo(ing)
@@ -150,6 +152,7 @@ func inspectIngress(ing *v12.Ingress) Ingress {
 		UID:         string(ing.UID),
 		Description: ing.Annotations[AnnoDescription],
 		LogoURL:     ing.Annotations[AnnoLogoURL],
+		Hide:        toBool(ing.Annotations[AnnoHide], false),
 		URLs:        toURLs(ing.Spec),
 	}
 }
@@ -182,4 +185,11 @@ func toURLs(spec v12.IngressSpec) []string {
 	}
 
 	return urls
+}
+
+func toBool(value string, defaultValue bool) bool {
+	if v, err := strconv.ParseBool(value); err == nil {
+		return v
+	}
+	return defaultValue
 }
