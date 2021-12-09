@@ -1,3 +1,6 @@
+---
+nav_order: 3
+---
 # Authorization
 
 By-default, dashboard is not protected and available for everyone.

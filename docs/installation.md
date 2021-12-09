@@ -1,3 +1,6 @@
+---
+nav_order: 1
+---
 # Installation
 
 Kubernetes with RBAC
