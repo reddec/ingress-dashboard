@@ -34,6 +34,7 @@ type Config struct {
 	Auth          string `long:"auth" env:"AUTH" description:"Auth scheme" default:"none" choice:"none" choice:"oidc" choice:"basic"`
 	BasicUser     string `long:"basic-user" env:"BASIC_USER" description:"Basic Auth username"`
 	BasicPassword string `long:"basic-password" env:"BASIC_PASSWORD" description:"Basic Auth password"`
+	StaticSource  string `long:"static-source" env:"STATIC_SOURCE" description:"Location of static ingress definitions" `
 }
 
 func main() {
@@ -63,6 +64,11 @@ func run(cfg Config) error {
 	defer cancel()
 
 	svc := internal.New()
+	staticDefinitions, err := internal.LoadDefinitions(cfg.StaticSource)
+	if err != nil {
+		return fmt.Errorf("load static definitions: %w", err)
+	}
+	svc.Prepend(staticDefinitions)
 
 	secured, err := cfg.secureHandler(ctx, svc)
 	if err != nil {

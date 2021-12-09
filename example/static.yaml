@@ -1,0 +1,13 @@
+---
+name: Some site
+namespace: external links # used in 'from'
+urls:
+  - https://example.com
+---
+name: Google
+namespace: external links
+logo_url: https://www.google.ru/favicon.ico
+description: |
+  Well-known search engine
+urls:
+  - https://google.com
