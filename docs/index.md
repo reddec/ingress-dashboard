@@ -13,7 +13,7 @@ Kubernetes with RBAC
     curl -L https://github.com/reddec/ingress-dashboard/releases/latest/download/ingress-dashboard.yaml | \
     kubectl apply -f -
 
-Optionally deploy use Ingress to open access to dashboard. Read [authorization](#authorization) how to secure access.
+Optionally use Ingress to open access to dashboard. Read [authorization](#authorization) how to secure access.
 
 **Example**
 
