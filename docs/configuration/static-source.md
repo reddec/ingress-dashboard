@@ -1,3 +1,6 @@
+---
+parent: configuration
+---
 
 ## Static source
 

@@ -1,3 +1,7 @@
+---
+parent: configuration
+---
+
 # Annotations
 
 ingress-dashboard relies on annotations in
