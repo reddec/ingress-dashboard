@@ -1,5 +1,6 @@
 <html>
 <head>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="static/mvp.css">
     <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
@@ -14,22 +15,24 @@
 {{end}}
 <div class="card-holder">
     {{range $ingress := .Ingresses}}
-        <div class="card">
-            <div class="title">
-                {{with $ingress.Logo}}
-                    <h2>
-                        <img src="{{.}}" alt="{{$ingress.ID}}">
-                    </h2>
-                {{end}}
-                {{with $ingress.Label}}
-                    <h2>{{.}}</h2>
+        <form class="card">
+            <div class="header">
+                <div class="title">
+                    {{with $ingress.Logo}}
+                        <h2>
+                            <img loading="lazy" src="{{.}}" alt="{{$ingress.ID}}">
+                        </h2>
+                    {{end}}
+                    {{with $ingress.Label}}
+                        <h2>{{.}}</h2>
+                    {{end}}
+                </div>
+                {{with $ingress.Namespace}}
+                    <small>from {{.}}</small>
                 {{end}}
             </div>
-            {{with $ingress.Namespace}}
-                <small>from {{.}}</small>
-            {{end}}
             {{with $ingress.Description}}
-                <p>{{.}}</p>
+                <article>{{.}}</article>
             {{end}}
             {{range $ref := $ingress.Refs}}
                 <p class="ref">
@@ -45,7 +48,17 @@
                     {{end}}
                 {{- end}}
             {{end}}
-        </div>
+            <div class="status-line">
+                {{if $ingress.TLS}}
+                    <span class="success" title="TLS enabled">🛡 TLS enabled️</span>
+                {{else}}
+                    <span class="warn" title="Insecure connections">🔓 TLS not enabled</span>
+                {{end}}
+                {{if $ingress.HasDeadRefs}}
+                    <span class="warn" title="Hosts are missing">☠️ no hosts</span>
+                {{end}}
+            </div>
+        </form>
     {{end}}
 </div>
 </body>
@@ -56,11 +69,11 @@
     }
 
     .card {
-        margin: 1em 0.5em 1em 0.5em;
-        padding: 0.5em 1em 0.5em 1em;
-        border-radius: 1em;
-        border: #555555 solid 1px;
+        margin: 0.5em;
         max-width: calc(100% - 2em - 1em);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
     }
 
     @media only screen and (max-width: 600px) {
@@ -86,10 +99,19 @@
         align-items: center;
     }
 
+    .title h2 {
+        margin-bottom: 0.2em;
+        margin-top: 0.2em;
+    }
+
     .title img {
         height: 1em;
         width: 1em;
         margin-right: 1em;
+    }
+
+    .header {
+        margin-bottom: 1em;
     }
 
     .top {
@@ -110,6 +132,18 @@
 
     .warn {
         color: darkred;
+    }
+
+    .success {
+        color: green;
+    }
+
+    .status-line {
+        display: flex;
+        justify-content: space-between;
+        font-size: small;
+        color: #999999;
+        margin-bottom: -0.5em;
     }
 </style>
 </html>

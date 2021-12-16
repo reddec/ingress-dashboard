@@ -167,6 +167,7 @@ func (kw *kubeWatcher) inspectIngress(ctx context.Context, ing *v12.Ingress) Ing
 		LogoURL:     ing.Annotations[AnnoLogoURL],
 		Hide:        toBool(ing.Annotations[AnnoHide], false),
 		Refs:        kw.getRefs(ctx, ing),
+		TLS:         len(ing.Spec.TLS) > 0,
 	}
 }
 

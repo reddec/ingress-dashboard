@@ -12,6 +12,6 @@ Features:
 * Supports static configuration (in addition to Ingress objects)
 * Multiarch docker images: for amd64 and for arm64
 
-<img alt="image" src="https://user-images.githubusercontent.com/6597086/145249365-52035d08-469d-460e-b42c-e6af5d271e10.png">
+![image](https://user-images.githubusercontent.com/6597086/146317711-575b7be9-7fa9-47a4-90ee-5328393f4adc.png)
 
 Check [documentation](http://ingress-dashboard.reddec.net)

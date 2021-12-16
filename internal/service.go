@@ -27,6 +27,7 @@ type Ingress struct {
 	Hide        bool   `yaml:"hide"`        // hidden Ingresses will not appear in UI
 	LogoURL     string `yaml:"logo_url"`    // custom URL for icon
 	Refs        []Ref  `yaml:"-"`
+	TLS         bool   `yaml:"-"`
 }
 
 type Ref struct {
@@ -53,7 +54,15 @@ func (ingress Ingress) Logo() string {
 		}
 	}
 	return ingress.LogoURL
+}
 
+func (ingress Ingress) HasDeadRefs() bool {
+	for _, ref := range ingress.Refs {
+		if !ref.Static && ref.Pods == 0 {
+			return true
+		}
+	}
+	return false
 }
 
 type UIContext struct {
