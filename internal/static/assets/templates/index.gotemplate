@@ -16,6 +16,11 @@
 <div class="card-holder">
     {{range $ingress := .Ingresses}}
         <form class="card">
+            {{with $ingress.Namespace}}
+                <div class="ns">
+                    <small>{{.}}</small>
+                </div>
+            {{end}}
             <div class="header">
                 <div class="title">
                     {{with $ingress.Logo}}
@@ -27,12 +32,14 @@
                         <h2>{{.}}</h2>
                     {{end}}
                 </div>
-                {{with $ingress.Namespace}}
-                    <small>from {{.}}</small>
+                {{if $ingress.Class}}
+                    <small>routed by {{$ingress.Class}}</small>
+                {{else}}
+                    <small class="warn" title="Ingress class should be defined">routed using default ingress</small>
                 {{end}}
             </div>
             {{with $ingress.Description}}
-                <article>{{.}}</article>
+                <p class="description">{{.}}</article>
             {{end}}
             {{range $ref := $ingress.Refs}}
                 <p class="ref">
@@ -131,11 +138,11 @@
     }
 
     .warn {
-        color: darkred;
+        color: #804141;
     }
 
     .success {
-        color: green;
+        color: #328132;
     }
 
     .status-line {
@@ -144,6 +151,16 @@
         font-size: small;
         color: #999999;
         margin-bottom: -0.5em;
+    }
+
+    .ns {
+        margin-top: -0.5rem;
+        text-align: center;
+    }
+
+    .description {
+        padding-top: 0.5em;
+        padding-bottom: 0.5em;
     }
 </style>
 </html>

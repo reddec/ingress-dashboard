@@ -158,6 +158,7 @@ func (kw *kubeWatcher) updateLogo(ingress Ingress) {
 
 func (kw *kubeWatcher) inspectIngress(ctx context.Context, ing *v12.Ingress) Ingress {
 	return Ingress{
+		Class:       getClassName(ing),
 		Name:        ing.Name,
 		Namespace:   ing.Namespace,
 		Title:       ing.Annotations[AnnoTitle],
@@ -232,4 +233,12 @@ func toBool(value string, defaultValue bool) bool {
 		return v
 	}
 	return defaultValue
+}
+
+func getClassName(ing *v12.Ingress) string {
+	const anno = "kubernetes.io/ingress.class"
+	if ing.Spec.IngressClassName != nil {
+		return *ing.Spec.IngressClassName
+	}
+	return ing.Annotations[anno]
 }

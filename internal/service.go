@@ -18,14 +18,15 @@ import (
 )
 
 type Ingress struct {
-	ID          string `yaml:"id"`          // human readable ID (namespace with name)
-	UID         string `yaml:"uid"`         // machine readable ID (guid in Kube)
-	Title       string `yaml:"title"`       // custom title in dashboard, overwrites Name
+	ID          string `yaml:"-"`           // human readable ID (namespace with name)
+	UID         string `yaml:"-"`           // machine readable ID (guid in Kube)
+	Title       string `yaml:"-"`           // custom title in dashboard, overwrites Name
 	Name        string `yaml:"name"`        // ingress name as in Kube
 	Namespace   string `yaml:"namespace"`   // Kube namespace for ingress
 	Description string `yaml:"description"` // optional, human-readable description of Ingress
-	Hide        bool   `yaml:"hide"`        // hidden Ingresses will not appear in UI
+	Hide        bool   `yaml:"-"`           // hidden Ingresses will not appear in UI
 	LogoURL     string `yaml:"logo_url"`    // custom URL for icon
+	Class       string `yaml:"-"`           // Ingress class
 	Refs        []Ref  `yaml:"-"`
 	TLS         bool   `yaml:"-"`
 }
