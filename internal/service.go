@@ -11,25 +11,32 @@ import (
 	"path/filepath"
 	"strings"
 	"sync/atomic"
+	"time"
 
+	"github.com/hako/durafmt"
 	"github.com/reddec/ingress-dashboard/internal/auth"
 	"github.com/reddec/ingress-dashboard/internal/static"
 	"gopkg.in/yaml.v3"
 )
 
+const (
+	SoonExpiredInterval = 14 * 24 * time.Hour // 2 weeks
+)
+
 type Ingress struct {
-	ID          string `yaml:"-"`           // human readable ID (namespace with name)
-	UID         string `yaml:"-"`           // machine readable ID (guid in Kube)
-	Title       string `yaml:"-"`           // custom title in dashboard, overwrites Name
-	Name        string `yaml:"name"`        // ingress name as in Kube
-	Namespace   string `yaml:"namespace"`   // Kube namespace for ingress
-	Description string `yaml:"description"` // optional, human-readable description of Ingress
-	Hide        bool   `yaml:"-"`           // hidden Ingresses will not appear in UI
-	LogoURL     string `yaml:"logo_url"`    // custom URL for icon
-	Class       string `yaml:"-"`           // Ingress class
-	Static      bool   `yaml:"-"`
-	Refs        []Ref  `yaml:"-"`
-	TLS         bool   `yaml:"-"`
+	ID            string    `yaml:"-"`           // human readable ID (namespace with name)
+	UID           string    `yaml:"-"`           // machine readable ID (guid in Kube)
+	Title         string    `yaml:"-"`           // custom title in dashboard, overwrites Name
+	Name          string    `yaml:"name"`        // ingress name as in Kube
+	Namespace     string    `yaml:"namespace"`   // Kube namespace for ingress
+	Description   string    `yaml:"description"` // optional, human-readable description of Ingress
+	Hide          bool      `yaml:"-"`           // hidden Ingresses will not appear in UI
+	LogoURL       string    `yaml:"logo_url"`    // custom URL for icon
+	Class         string    `yaml:"-"`           // Ingress class
+	Static        bool      `yaml:"-"`
+	Refs          []Ref     `yaml:"-"`
+	TLS           bool      `yaml:"-"`
+	TLSExpiration time.Time `yaml:"-"`
 }
 
 type Ref struct {
@@ -65,6 +72,18 @@ func (ingress Ingress) HasDeadRefs() bool {
 		}
 	}
 	return false
+}
+
+func (ingress Ingress) IsTLSExpired() bool {
+	return ingress.TLS && (time.Now().After(ingress.TLSExpiration))
+}
+
+func (ingress Ingress) IsTLSSoonExpire() bool {
+	return ingress.TLS && (ingress.TLSExpiration.Sub(time.Now()) < SoonExpiredInterval)
+}
+
+func (ingress Ingress) WhenTLSExpires() string {
+	return durafmt.Parse(ingress.TLSExpiration.Sub(time.Now())).String()
 }
 
 type UIContext struct {

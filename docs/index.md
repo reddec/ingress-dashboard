@@ -10,6 +10,7 @@ Features:
 * Supports static configuration (in addition to Ingress objects)
 * Multiarch docker images: for amd64 and for arm64
 * Automatic even-based updates
+* Automatic TLS expiration checks
 
 Limitations:
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/url"
 	"sort"
 	"strconv"
 	"sync"
@@ -21,6 +22,7 @@ const (
 	AnnoTitle       = "ingress-dashboard/title"
 	AnnoHide        = "ingress-dashboard/hide" // do not display ingress in dashboard
 	syncInterval    = 30 * time.Second
+	tlsInterval     = time.Hour
 )
 
 type Receiver interface {
@@ -50,6 +52,13 @@ func WatchKubernetes(global context.Context, clientset *kubernetes.Clientset, re
 		defer cancel()
 		watcher.runLogoFetcher(ctx)
 	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer cancel()
+		watcher.runCertsInfoCheck(ctx)
+	}()
 	wg.Wait()
 }
 
@@ -59,6 +68,7 @@ func newWatcher(global context.Context, receiver Receiver, clientset *kubernetes
 		cache:      make(map[string]Ingress),
 		receiver:   receiver,
 		checkLogos: make(chan struct{}, 1),
+		checkCerts: make(chan struct{}, 1),
 		clientset:  clientset,
 	}
 }
@@ -70,6 +80,7 @@ type kubeWatcher struct {
 	lock       sync.RWMutex
 	receiver   Receiver
 	checkLogos chan struct{}
+	checkCerts chan struct{}
 }
 
 func (kw *kubeWatcher) OnAdd(obj interface{}) {
@@ -137,6 +148,11 @@ func (kw *kubeWatcher) notify() {
 	case kw.checkLogos <- struct{}{}:
 	default:
 	}
+
+	select {
+	case kw.checkCerts <- struct{}{}:
+	default:
+	}
 }
 
 func (kw *kubeWatcher) items() []Ingress {
@@ -153,6 +169,17 @@ func (kw *kubeWatcher) updateLogo(ingress Ingress) {
 		return
 	}
 	old.LogoURL = ingress.LogoURL
+	kw.cache[ingress.UID] = old
+}
+
+func (kw *kubeWatcher) updateTLSExpiration(ingress Ingress) {
+	kw.lock.Lock()
+	defer kw.lock.Unlock()
+	old, exists := kw.cache[ingress.UID]
+	if !exists {
+		return
+	}
+	old.TLSExpiration = ingress.TLSExpiration
 	kw.cache[ingress.UID] = old
 }
 
@@ -228,6 +255,62 @@ func (kw *kubeWatcher) getPodsNum(ctx context.Context, ns string, svc *v12.Ingre
 	return len(info.Spec.ClusterIPs) + extHosts, nil
 }
 
+func (kw *kubeWatcher) runCertsInfoCheck(ctx context.Context) {
+	timer := time.NewTicker(tlsInterval)
+	defer timer.Stop()
+
+	for {
+		kw.scanTLSCerts(ctx)
+		select {
+		case <-kw.checkCerts:
+		case <-timer.C:
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func (kw *kubeWatcher) scanTLSCerts(ctx context.Context) {
+	var visited = map[string]time.Time{}
+
+	for _, item := range kw.items() {
+		if !item.TLS {
+			continue
+		}
+		var min time.Time
+		for _, u := range item.Refs {
+			if parsedURL, err := url.Parse(u.URL); err == nil {
+				host := parsedURL.Hostname()
+
+				if exp, ok := visited[host]; ok {
+					min = timeMin(min, exp)
+					continue
+				}
+
+				expiredAt, err := Expiration(ctx, host)
+				if err != nil {
+					log.Println("failed get expiration time", host, ":", err)
+					continue
+				}
+
+				if expiredAt.IsZero() {
+					// no expirations
+					continue
+				}
+
+				min = timeMin(min, expiredAt)
+				visited[host] = expiredAt
+			}
+		}
+
+		if !min.IsZero() {
+			item.TLSExpiration = min
+			kw.updateTLSExpiration(item)
+		}
+	}
+	kw.receiver.Set(kw.items())
+}
+
 func toBool(value string, defaultValue bool) bool {
 	if v, err := strconv.ParseBool(value); err == nil {
 		return v
@@ -241,4 +324,14 @@ func getClassName(ing *v12.Ingress) string {
 		return *ing.Spec.IngressClassName
 	}
 	return ing.Annotations[anno]
+}
+
+func timeMin(a, b time.Time) time.Time {
+	if a.IsZero() {
+		return b
+	}
+	if b.After(a) {
+		return a
+	}
+	return b
 }

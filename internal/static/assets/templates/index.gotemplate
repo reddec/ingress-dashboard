@@ -41,31 +41,39 @@
                 {{end}}
             </div>
             <p class="description">{{$ingress.Description}}</article>
-            {{range $ref := $ingress.Refs}}
-                <p class="ref">
-                    <a href="{{$ref.URL}}" target="_blank">{{$ref.URL}}</a>
+                {{range $ref := $ingress.Refs}}
+        <p class="ref">
+            <a href="{{$ref.URL}}" target="_blank">{{$ref.URL}}</a>
+        </p>
+        {{- if not $ref.Static}}
+            {{if $ref.Pods}}
+                <p class="meta-info">
+                    {{$ref.Pods}} host{{if gt $ref.Pods 1}}s{{end}}
                 </p>
-                {{- if not $ref.Static}}
-                    {{if $ref.Pods}}
-                        <p class="meta-info">
-                            {{$ref.Pods}} host{{if gt $ref.Pods 1}}s{{end}}
-                        </p>
-                    {{else}}
-                        <p class="meta-info {{if not $ref.Pods}}warn{{end}}">no hosts!</p>
-                    {{end}}
-                {{- end}}
+            {{else}}
+                <p class="meta-info {{if not $ref.Pods}}warn{{end}}">no hosts!</p>
+            {{end}}
+        {{- end}}
             {{end}}
             {{if not $ingress.Static}}
-            <div class="status-line">
-                {{if $ingress.TLS}}
-                    <span class="success" title="TLS enabled">🛡 TLS enabled️</span>
-                {{else}}
-                    <span class="warn" title="Insecure connections">🔓 TLS not enabled</span>
-                {{end}}
-                {{if $ingress.HasDeadRefs}}
-                    <span class="warn" title="Hosts are missing">☠️ no hosts</span>
-                {{end}}
-            </div>
+                <div class="status-line">
+                    {{if $ingress.TLS}}
+                        {{if $ingress.TLSExpiration.IsZero}}
+                            <span title="TLS enabled but status not yet known">TLS status unknown</span>
+                        {{else if $ingress.IsTLSExpired}}
+                            <span class="warn" title="TLS certificate expired at {{$ingress.TLSExpiration}}">❌ TLS expired</span>
+                        {{else if $ingress.IsTLSSoonExpire}}
+                            <span class="danger" title="TLS certificate will expire after {{$ingress.WhenTLSExpires}}">🔔 TLS soon expire</span>
+                        {{else}}
+                            <span class="success" title="TLS enabled, valid until {{$ingress.TLSExpiration}}">🛡 TLS enabled️</span>
+                        {{end}}
+                    {{else}}
+                        <span class="warn" title="Insecure connections">🔓 TLS not enabled</span>
+                    {{end}}
+                    {{if $ingress.HasDeadRefs}}
+                        <span class="warn" title="Hosts are missing">☠️ no hosts</span>
+                    {{end}}
+                </div>
             {{end}}
         </form>
     {{end}}
@@ -145,6 +153,10 @@
 
     .success {
         color: #328132;
+    }
+
+    .danger {
+        color: #bbbb39;
     }
 
     .status-line {
