@@ -18,5 +18,6 @@ func UserFromContext(ctx context.Context) *User {
 	if v, ok := ctx.Value(userKey{}).(*User); ok {
 		return v
 	}
+
 	return nil
 }

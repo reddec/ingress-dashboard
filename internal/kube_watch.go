@@ -29,13 +29,13 @@ type Receiver interface {
 	Set(ingresses []Ingress)
 }
 
-func WatchKubernetes(global context.Context, clientset *kubernetes.Clientset, reciever interface {
+func WatchKubernetes(global context.Context, clientset kubernetes.Interface, receiver interface {
 	Set(ingresses []Ingress)
 }) {
 	ctx, cancel := context.WithCancel(global)
 	defer cancel()
 
-	watcher := newWatcher(ctx, reciever, clientset)
+	watcher := newWatcher(ctx, receiver, clientset)
 
 	var wg sync.WaitGroup
 
@@ -62,7 +62,7 @@ func WatchKubernetes(global context.Context, clientset *kubernetes.Clientset, re
 	wg.Wait()
 }
 
-func newWatcher(global context.Context, receiver Receiver, clientset *kubernetes.Clientset) *kubeWatcher {
+func newWatcher(global context.Context, receiver Receiver, clientset kubernetes.Interface) *kubeWatcher {
 	return &kubeWatcher{
 		global:     global,
 		cache:      make(map[string]Ingress),
@@ -75,7 +75,7 @@ func newWatcher(global context.Context, receiver Receiver, clientset *kubernetes
 
 type kubeWatcher struct {
 	global     context.Context
-	clientset  *kubernetes.Clientset
+	clientset  kubernetes.Interface
 	cache      map[string]Ingress
 	lock       sync.RWMutex
 	receiver   Receiver
@@ -96,7 +96,10 @@ func (kw *kubeWatcher) OnDelete(obj interface{}) {
 
 	kw.lock.Lock()
 	defer kw.lock.Unlock()
-	ing := obj.(*v12.IngressClass)
+	ing, ok := obj.(*v12.IngressClass)
+	if !ok {
+		return
+	}
 	delete(kw.cache, string(ing.UID))
 }
 
@@ -119,7 +122,7 @@ func (kw *kubeWatcher) runLogoFetcher(ctx context.Context) {
 	}
 }
 
-func (kw *kubeWatcher) runWatcher(ctx context.Context, clientset *kubernetes.Clientset) {
+func (kw *kubeWatcher) runWatcher(ctx context.Context, clientset kubernetes.Interface) {
 	informerFactory := informers.NewSharedInformerFactory(clientset, syncInterval)
 	informer := informerFactory.Networking().V1().Ingresses().Informer()
 
@@ -129,7 +132,10 @@ func (kw *kubeWatcher) runWatcher(ctx context.Context, clientset *kubernetes.Cli
 
 func (kw *kubeWatcher) upsertIngress(ctx context.Context, obj interface{}) {
 	defer kw.notify()
-	ing := obj.(*v12.Ingress)
+	ing, ok := obj.(*v12.Ingress)
+	if !ok {
+		return
+	}
 	ingress := kw.inspectIngress(ctx, ing)
 
 	kw.lock.Lock()
@@ -158,6 +164,7 @@ func (kw *kubeWatcher) notify() {
 func (kw *kubeWatcher) items() []Ingress {
 	kw.lock.RLock()
 	defer kw.lock.RUnlock()
+
 	return toList(kw.cache)
 }
 
@@ -207,6 +214,7 @@ func toList(cache map[string]Ingress) []Ingress {
 	sort.Slice(cp, func(i, j int) bool {
 		return cp[i].ID < cp[j].ID
 	})
+
 	return cp
 }
 
@@ -234,16 +242,17 @@ func (kw *kubeWatcher) getRefs(ctx context.Context, ing *v12.Ingress) []Ref {
 			}
 		}
 	}
+
 	return refs
 }
 
-func (kw *kubeWatcher) getPodsNum(ctx context.Context, ns string, svc *v12.IngressServiceBackend) (int, error) {
+func (kw *kubeWatcher) getPodsNum(ctx context.Context, namespace string, svc *v12.IngressServiceBackend) (int, error) {
 	if svc == nil {
 		return 0, nil
 	}
-	info, err := kw.clientset.CoreV1().Services(ns).Get(ctx, svc.Name, v1.GetOptions{})
+	info, err := kw.clientset.CoreV1().Services(namespace).Get(ctx, svc.Name, v1.GetOptions{})
 	if err != nil {
-		return 0, fmt.Errorf("get service %s in %s: %w", svc.Name, ns, err)
+		return 0, fmt.Errorf("get service %s in %s: %w", svc.Name, namespace, err)
 	}
 
 	var extHosts = len(info.Spec.ExternalIPs)
@@ -284,12 +293,14 @@ func (kw *kubeWatcher) scanTLSCerts(ctx context.Context) {
 
 				if exp, ok := visited[host]; ok {
 					min = timeMin(min, exp)
+
 					continue
 				}
 
 				expiredAt, err := Expiration(ctx, host)
 				if err != nil {
 					log.Println("failed get expiration time", host, ":", err)
+
 					continue
 				}
 
@@ -315,6 +326,7 @@ func toBool(value string, defaultValue bool) bool {
 	if v, err := strconv.ParseBool(value); err == nil {
 		return v
 	}
+
 	return defaultValue
 }
 
@@ -323,15 +335,17 @@ func getClassName(ing *v12.Ingress) string {
 	if ing.Spec.IngressClassName != nil {
 		return *ing.Spec.IngressClassName
 	}
+
 	return ing.Annotations[anno]
 }
 
-func timeMin(a, b time.Time) time.Time {
-	if a.IsZero() {
-		return b
+func timeMin(valueA, valueB time.Time) time.Time {
+	if valueA.IsZero() {
+		return valueB
 	}
-	if b.After(a) {
-		return a
+	if valueB.After(valueA) {
+		return valueA
 	}
-	return b
+
+	return valueB
 }

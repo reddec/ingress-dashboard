@@ -49,6 +49,7 @@ func (ingress Ingress) Label() string {
 	if ingress.Title != "" {
 		return ingress.Title
 	}
+
 	return ingress.Name
 }
 
@@ -62,6 +63,7 @@ func (ingress Ingress) Logo() string {
 			return strings.TrimRight(u.URL, "/") + ingress.LogoURL
 		}
 	}
+
 	return ingress.LogoURL
 }
 
@@ -71,6 +73,7 @@ func (ingress Ingress) HasDeadRefs() bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -79,11 +82,11 @@ func (ingress Ingress) IsTLSExpired() bool {
 }
 
 func (ingress Ingress) IsTLSSoonExpire() bool {
-	return ingress.TLS && (ingress.TLSExpiration.Sub(time.Now()) < SoonExpiredInterval)
+	return ingress.TLS && (time.Until(ingress.TLSExpiration) < SoonExpiredInterval)
 }
 
 func (ingress Ingress) WhenTLSExpires() string {
-	return durafmt.Parse(ingress.TLSExpiration.Sub(time.Now())).String()
+	return durafmt.Parse(time.Until(ingress.TLSExpiration)).String()
 }
 
 type UIContext struct {
@@ -101,6 +104,7 @@ func New() *Service {
 	router.HandleFunc("/", svc.getIndex)
 	router.Handle("/static/", http.StripPrefix("/static", sfs))
 	router.Handle("/favicon.ico", sfs)
+
 	return svc
 }
 
@@ -129,8 +133,15 @@ func (svc *Service) ServeHTTP(writer http.ResponseWriter, request *http.Request)
 }
 
 func (svc *Service) getList() []Ingress {
-	prepend := svc.prepend.Load().([]Ingress)
-	main := svc.cache.Load().([]Ingress)
+	prepend, ok := svc.prepend.Load().([]Ingress)
+	if !ok {
+		return nil
+	}
+	main, ok := svc.cache.Load().([]Ingress)
+	if !ok {
+		return prepend
+	}
+
 	return append(prepend, main...)
 }
 
@@ -143,13 +154,14 @@ func (svc *Service) getIndex(writer http.ResponseWriter, request *http.Request) 
 }
 
 func visibleIngresses(list []Ingress) []Ingress {
-	cp := make([]Ingress, 0, len(list))
+	clone := make([]Ingress, 0, len(list))
 	for _, ing := range list {
 		if !ing.Hide {
-			cp = append(cp, ing)
+			clone = append(clone, ing)
 		}
 	}
-	return cp
+
+	return clone
 }
 
 // LoadDefinitions scans location (file or dir) for YAML/JSON (.yml, .yaml, .json) definitions of Ingress.
@@ -178,13 +190,13 @@ func LoadDefinitions(location string) ([]Ingress, error) {
 			return nil
 		}
 
-		f, err := os.Open(path)
+		configFile, err := os.Open(path)
 		if err != nil {
 			return fmt.Errorf("open config file: %w", err)
 		}
-		defer f.Close()
+		defer configFile.Close()
 
-		var decoder = yaml.NewDecoder(f)
+		var decoder = yaml.NewDecoder(configFile)
 		for {
 			var ingress YamlIngress
 			ingress.Static = true
@@ -208,5 +220,6 @@ func LoadDefinitions(location string) ([]Ingress, error) {
 
 		return nil
 	})
+
 	return ans, err
 }

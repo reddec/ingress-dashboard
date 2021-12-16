@@ -15,6 +15,11 @@ import (
 	"golang.org/x/oauth2"
 )
 
+const (
+	stateSize = 16
+	nonceSize = 16
+)
+
 type Config struct {
 	IssuerURL    string
 	ClientID     string
@@ -31,6 +36,7 @@ func NewOIDC(ctx context.Context, cfg Config, next http.Handler) (http.Handler, 
 		EndSessionURL string `json:"end_session_endpoint"`
 	}
 	_ = provider.Claims(&claims)
+
 	return &oauthMiddleware{
 		oauthConfig: oauth2.Config{
 			ClientID:     cfg.ClientID,
@@ -59,12 +65,14 @@ func (svc *oauthMiddleware) ServeHTTP(writer http.ResponseWriter, request *http.
 	if strings.HasSuffix(request.URL.Path, "/oauth2/callback") {
 		log.Println("handle callback")
 		svc.handlerCallback(writer, request)
+
 		return
 	}
 	cookie, err := request.Cookie("token")
 	if err != nil {
 		log.Println("unauthorized - no cookie")
 		svc.unauthorizedRequest(writer, request)
+
 		return
 	}
 
@@ -72,27 +80,29 @@ func (svc *oauthMiddleware) ServeHTTP(writer http.ResponseWriter, request *http.
 	if err != nil {
 		log.Println("unauthorized - invalid token")
 		svc.unauthorizedRequest(writer, request)
+
 		return
 	}
 	if strings.HasSuffix(request.URL.Path, "/logout") {
 		log.Println("handle logout")
 		svc.logout(writer, request, cookie.Value)
+
 		return
 	}
-
 	svc.next.ServeHTTP(writer, request.WithContext(WithUser(request.Context(), User{Name: getUserName(idToken)})))
 }
 
 func (svc *oauthMiddleware) unauthorizedRequest(writer http.ResponseWriter, request *http.Request) {
-
-	state, err := randString(16)
+	state, err := randString(stateSize)
 	if err != nil {
 		http.Error(writer, "Internal error", http.StatusInternalServerError)
+
 		return
 	}
-	nonce, err := randString(16)
+	nonce, err := randString(nonceSize)
 	if err != nil {
 		http.Error(writer, "Internal error", http.StatusInternalServerError)
+
 		return
 	}
 
@@ -106,35 +116,42 @@ func (svc *oauthMiddleware) handlerCallback(writer http.ResponseWriter, request 
 	state, err := request.Cookie("state")
 	if err != nil {
 		http.Error(writer, "state not found", http.StatusBadRequest)
+
 		return
 	}
 	if request.URL.Query().Get("state") != state.Value {
 		http.Error(writer, "state did not match", http.StatusBadRequest)
+
 		return
 	}
 	oauth2Token, err := svc.getConfig(request).Exchange(request.Context(), request.URL.Query().Get("code"))
 	if err != nil {
 		http.Error(writer, "Failed to exchange token: "+err.Error(), http.StatusInternalServerError)
+
 		return
 	}
 	rawIDToken, ok := oauth2Token.Extra("id_token").(string)
 	if !ok {
 		http.Error(writer, "No id_token field in oauth2 token.", http.StatusInternalServerError)
+
 		return
 	}
 	idToken, err := svc.verifier.Verify(request.Context(), rawIDToken)
 	if err != nil {
 		http.Error(writer, "Failed to verify ID Token: "+err.Error(), http.StatusInternalServerError)
+
 		return
 	}
 
 	nonce, err := request.Cookie("nonce")
 	if err != nil {
 		http.Error(writer, "nonce not found", http.StatusBadRequest)
+
 		return
 	}
 	if idToken.Nonce != nonce.Value {
 		http.Error(writer, "nonce did not match", http.StatusBadRequest)
+
 		return
 	}
 	// store rawIDToken in cookie to re-use it later
@@ -150,7 +167,7 @@ func (svc *oauthMiddleware) handlerCallback(writer http.ResponseWriter, request 
 }
 
 func (svc *oauthMiddleware) logout(writer http.ResponseWriter, request *http.Request, hint string) {
-	c := &http.Cookie{
+	cookie := &http.Cookie{
 		Name:     "token",
 		Value:    "",
 		Path:     "/",
@@ -158,7 +175,7 @@ func (svc *oauthMiddleware) logout(writer http.ResponseWriter, request *http.Req
 		HttpOnly: true,
 		MaxAge:   -1,
 	}
-	http.SetCookie(writer, c)
+	http.SetCookie(writer, cookie)
 	svc.requestEndSession(request.Context(), hint)
 	http.Redirect(writer, request, "/", http.StatusFound)
 }
@@ -175,12 +192,14 @@ func (svc *oauthMiddleware) getServerURL(req *http.Request) string {
 	if isSecure(req) {
 		proto = "https"
 	}
+
 	return proto + "://" + host
 }
 
 func (svc *oauthMiddleware) getConfig(req *http.Request) *oauth2.Config {
 	cp := svc.oauthConfig
 	cp.RedirectURL = svc.getServerURL(req) + "/oauth2/callback"
+
 	return &cp
 }
 
@@ -205,25 +224,27 @@ func randString(nByte int) (string, error) {
 	if _, err := io.ReadFull(rand.Reader, b); err != nil {
 		return "", err
 	}
+
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
-func setCallbackCookie(w http.ResponseWriter, r *http.Request, name, value string) {
-	c := &http.Cookie{
+func setCallbackCookie(writer http.ResponseWriter, request *http.Request, name, value string) {
+	cookie := &http.Cookie{
 		Name:     name,
 		Path:     "/",
 		Value:    value,
 		MaxAge:   int(time.Hour.Seconds()),
-		Secure:   isSecure(r),
+		Secure:   isSecure(request),
 		HttpOnly: true,
 	}
-	http.SetCookie(w, c)
+	http.SetCookie(writer, cookie)
 }
 
 func isSecure(req *http.Request) bool {
 	if v := req.Header.Get("X-Forwarded-Proto"); v != "" {
 		return v == "https"
 	}
+
 	return req.TLS != nil
 }
 
@@ -239,5 +260,6 @@ func getUserName(token *oidc.IDToken) string {
 	if claims.Email != "" {
 		return claims.Email
 	}
+
 	return token.Subject
 }

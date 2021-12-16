@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -9,6 +10,11 @@ import (
 	"strings"
 
 	"golang.org/x/net/html"
+)
+
+var (
+	errNot200 = errors.New("non-200 code")
+	errNoLogo = errors.New("no logo in meta")
 )
 
 func detectIconURL(ctx context.Context, url string) string {
@@ -22,6 +28,7 @@ func detectIconURL(ctx context.Context, url string) string {
 	if pingURL(ctx, faviconURL) == nil {
 		return faviconURL
 	}
+
 	return ""
 }
 
@@ -37,7 +44,7 @@ func mainSrcPageIcon(ctx context.Context, pageURL string) (string, error) {
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("non-200 code")
+		return "", errNot200
 	}
 	doc, err := html.Parse(res.Body)
 	if err != nil {
@@ -45,11 +52,12 @@ func mainSrcPageIcon(ctx context.Context, pageURL string) (string, error) {
 	}
 	logoURL := findIcons(doc)
 	if logoURL == "" {
-		return "", fmt.Errorf("no logo in meta")
+		return "", errNoLogo
 	}
 	if u, err := url.Parse(logoURL); err == nil && !u.IsAbs() && !strings.HasPrefix(logoURL, "/") {
 		logoURL = "/" + logoURL
 	}
+
 	return logoURL, nil
 }
 
@@ -68,7 +76,7 @@ func findIcons(doc *html.Node) string {
 
 	var links = make(map[string]string)
 	for child := head.FirstChild; child != nil; child = child.NextSibling {
-		if child.Type == html.ElementNode && child.Data == "link" {
+		if !(child.Type == html.ElementNode && child.Data == "link") {
 			var key string
 			var value string
 			for _, attr := range child.Attr {
@@ -88,6 +96,7 @@ func findIcons(doc *html.Node) string {
 			return u
 		}
 	}
+
 	return ""
 }
 
@@ -102,8 +111,9 @@ func pingURL(ctx context.Context, url string) error {
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf("non-200 code")
+		return errNot200
 	}
+
 	return nil
 }
 
@@ -113,5 +123,6 @@ func findChild(doc *html.Node, name string) *html.Node {
 			return child
 		}
 	}
+
 	return nil
 }

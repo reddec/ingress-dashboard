@@ -16,6 +16,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+//nolint:gochecknoglobals
 var (
 	version = "dev"
 	commit  = "none"
@@ -82,6 +83,7 @@ func run(cfg Config) error {
 
 	http.Handle("/", secured)
 	http.Handle("/favicon.ico", svc)
+
 	return cfg.Run(ctx)
 }
 
@@ -99,6 +101,6 @@ func (cfg Config) secureHandler(ctx context.Context, handler http.Handler) (http
 	case "basic":
 		return auth.NewBasic(cfg.BasicUser, cfg.BasicPassword, handler), nil
 	default:
-		return nil, fmt.Errorf("unknown auth scheme %s", cfg.Auth)
+		return nil, fmt.Errorf("unknown auth scheme %s", cfg.Auth) //nolint:goerr113
 	}
 }

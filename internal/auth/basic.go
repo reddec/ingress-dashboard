@@ -25,13 +25,15 @@ func (ba *basicAuth) ServeHTTP(writer http.ResponseWriter, request *http.Request
 		writer.Header().Set("Content-Type", "text/html")
 		writer.WriteHeader(http.StatusUnauthorized)
 		_, _ = writer.Write([]byte("<html><body><a href=\"/\">bye! Log-in again</a></body></html>"))
+
 		return
 	}
-	u, p, ok := request.BasicAuth()
-	if !ok || u != ba.username || p != ba.password {
+	user, password, ok := request.BasicAuth()
+	if !ok || user != ba.username || password != ba.password {
 		writer.Header().Set("WWW-Authenticate", "Basic realm=\"Restricted\"")
 		writer.WriteHeader(http.StatusUnauthorized)
+
 		return
 	}
-	ba.next.ServeHTTP(writer, request.WithContext(WithUser(request.Context(), User{Name: u})))
+	ba.next.ServeHTTP(writer, request.WithContext(WithUser(request.Context(), User{Name: user})))
 }

@@ -1,0 +1,23 @@
+run:
+  tests: false
+
+linters:
+  disable:
+    - lll
+    - gci
+    - wsl
+    - tagliatelle
+    - exhaustivestruct
+    - nakedret
+    - maligned
+    - gofumpt
+    - cyclop
+    - wrapcheck
+  enable-all: true
+linters-settings:
+  funlen:
+    lines: 80
+  gocognit:
+    min-complexity: 90
+  gocyclo:
+    min-complexity: 50
