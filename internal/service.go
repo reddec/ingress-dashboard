@@ -27,6 +27,7 @@ type Ingress struct {
 	Hide        bool   `yaml:"-"`           // hidden Ingresses will not appear in UI
 	LogoURL     string `yaml:"logo_url"`    // custom URL for icon
 	Class       string `yaml:"-"`           // Ingress class
+	Static      bool   `yaml:"-"`
 	Refs        []Ref  `yaml:"-"`
 	TLS         bool   `yaml:"-"`
 }
@@ -167,6 +168,7 @@ func LoadDefinitions(location string) ([]Ingress, error) {
 		var decoder = yaml.NewDecoder(f)
 		for {
 			var ingress YamlIngress
+			ingress.Static = true
 			err := decoder.Decode(&ingress)
 			if errors.Is(err, io.EOF) {
 				break

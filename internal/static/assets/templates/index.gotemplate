@@ -32,15 +32,15 @@
                         <h2>{{.}}</h2>
                     {{end}}
                 </div>
-                {{if $ingress.Class}}
-                    <small>routed by {{$ingress.Class}}</small>
-                {{else}}
-                    <small class="warn" title="Ingress class should be defined">routed using default ingress</small>
+                {{if not $ingress.Static}}
+                    {{if $ingress.Class}}
+                        <small>routed by {{$ingress.Class}}</small>
+                    {{else}}
+                        <small class="warn" title="Ingress class should be defined">routed using default ingress</small>
+                    {{end}}
                 {{end}}
             </div>
-            {{with $ingress.Description}}
-                <p class="description">{{.}}</article>
-            {{end}}
+            <p class="description">{{$ingress.Description}}</article>
             {{range $ref := $ingress.Refs}}
                 <p class="ref">
                     <a href="{{$ref.URL}}" target="_blank">{{$ref.URL}}</a>
@@ -55,6 +55,7 @@
                     {{end}}
                 {{- end}}
             {{end}}
+            {{if not $ingress.Static}}
             <div class="status-line">
                 {{if $ingress.TLS}}
                     <span class="success" title="TLS enabled">🛡 TLS enabled️</span>
@@ -65,6 +66,7 @@
                     <span class="warn" title="Hosts are missing">☠️ no hosts</span>
                 {{end}}
             </div>
+            {{end}}
         </form>
     {{end}}
 </div>
