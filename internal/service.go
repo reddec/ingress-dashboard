@@ -18,15 +18,21 @@ import (
 )
 
 type Ingress struct {
-	ID          string   `yaml:"id"`
-	UID         string   `yaml:"uid"`
-	Title       string   `yaml:"title"`
-	Name        string   `yaml:"name"`
-	Namespace   string   `yaml:"namespace"`
-	Description string   `yaml:"description"`
-	Hide        bool     `yaml:"hide"`
-	URLs        []string `yaml:"urls"`
-	LogoURL     string   `yaml:"logo_url"`
+	ID          string `yaml:"id"`          // human readable ID (namespace with name)
+	UID         string `yaml:"uid"`         // machine readable ID (guid in Kube)
+	Title       string `yaml:"title"`       // custom title in dashboard, overwrites Name
+	Name        string `yaml:"name"`        // ingress name as in Kube
+	Namespace   string `yaml:"namespace"`   // Kube namespace for ingress
+	Description string `yaml:"description"` // optional, human-readable description of Ingress
+	Hide        bool   `yaml:"hide"`        // hidden Ingresses will not appear in UI
+	LogoURL     string `yaml:"logo_url"`    // custom URL for icon
+	Refs        []Ref  `yaml:"-"`
+}
+
+type Ref struct {
+	URL    string // link to ingress
+	Pods   int    // number of pods linked to the service
+	Static bool   // is reference defined statically (for static refs, pods number has no sense)
 }
 
 func (ingress Ingress) Label() string {
@@ -42,8 +48,8 @@ func (ingress Ingress) Logo() string {
 	}
 	if strings.HasPrefix(ingress.LogoURL, "/") {
 		// relative to domain
-		for _, u := range ingress.URLs {
-			return strings.TrimRight(u, "/") + ingress.LogoURL
+		for _, u := range ingress.Refs {
+			return strings.TrimRight(u.URL, "/") + ingress.LogoURL
 		}
 	}
 	return ingress.LogoURL
@@ -121,6 +127,11 @@ func visibleIngresses(list []Ingress) []Ingress {
 //
 // Empty location is a special case and cause returning empty slice.
 func LoadDefinitions(location string) ([]Ingress, error) {
+	type YamlIngress struct {
+		Ingress `yaml:",inline"`
+		URLs    []string `yaml:"urls"`
+	}
+
 	if location == "" {
 		return nil, nil
 	}
@@ -145,7 +156,7 @@ func LoadDefinitions(location string) ([]Ingress, error) {
 
 		var decoder = yaml.NewDecoder(f)
 		for {
-			var ingress Ingress
+			var ingress YamlIngress
 			err := decoder.Decode(&ingress)
 			if errors.Is(err, io.EOF) {
 				break
@@ -153,7 +164,15 @@ func LoadDefinitions(location string) ([]Ingress, error) {
 			if err != nil {
 				return fmt.Errorf("decode config %s: %w", path, err)
 			}
-			ans = append(ans, ingress)
+
+			for _, u := range ingress.URLs {
+				ingress.Refs = append(ingress.Refs, Ref{
+					URL:    u,
+					Static: true,
+				})
+			}
+
+			ans = append(ans, ingress.Ingress)
 		}
 
 		return nil

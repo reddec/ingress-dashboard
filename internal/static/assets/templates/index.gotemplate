@@ -31,10 +31,19 @@
             {{with $ingress.Description}}
                 <p>{{.}}</p>
             {{end}}
-            {{range $url := $ingress.URLs}}
-                <p>
-                    <a href="{{$url}}" target="_blank">{{$url}}</a>
+            {{range $ref := $ingress.Refs}}
+                <p class="ref">
+                    <a href="{{$ref.URL}}" target="_blank">{{$ref.URL}}</a>
                 </p>
+                {{- if not $ref.Static}}
+                    {{if $ref.Pods}}
+                        <p class="meta-info">
+                            {{$ref.Pods}} host{{if gt $ref.Pods 1}}s{{end}}
+                        </p>
+                    {{else}}
+                        <p class="meta-info {{if not $ref.Pods}}warn{{end}}">no hosts!</p>
+                    {{end}}
+                {{- end}}
             {{end}}
         </div>
     {{end}}
@@ -87,6 +96,20 @@
         display: flex;
         justify-content: space-between;
         padding: 0.5em;
+    }
+
+    .ref {
+        margin-bottom: 0;
+    }
+
+    .meta-info {
+        margin-top: 0 !important;
+        font-size: x-small;
+        color: #999999;
+    }
+
+    .warn {
+        color: darkred;
     }
 </style>
 </html>

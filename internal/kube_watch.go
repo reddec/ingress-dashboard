@@ -2,12 +2,15 @@ package internal
 
 import (
 	"context"
+	"fmt"
+	"log"
 	"sort"
 	"strconv"
 	"sync"
 	"time"
 
 	v12 "k8s.io/api/networking/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 )
@@ -30,7 +33,7 @@ func WatchKubernetes(global context.Context, clientset *kubernetes.Clientset, re
 	ctx, cancel := context.WithCancel(global)
 	defer cancel()
 
-	watcher := newWatcher(reciever)
+	watcher := newWatcher(ctx, reciever, clientset)
 
 	var wg sync.WaitGroup
 
@@ -50,15 +53,19 @@ func WatchKubernetes(global context.Context, clientset *kubernetes.Clientset, re
 	wg.Wait()
 }
 
-func newWatcher(receiver Receiver) *kubeWatcher {
+func newWatcher(global context.Context, receiver Receiver, clientset *kubernetes.Clientset) *kubeWatcher {
 	return &kubeWatcher{
+		global:     global,
 		cache:      make(map[string]Ingress),
 		receiver:   receiver,
 		checkLogos: make(chan struct{}, 1),
+		clientset:  clientset,
 	}
 }
 
 type kubeWatcher struct {
+	global     context.Context
+	clientset  *kubernetes.Clientset
 	cache      map[string]Ingress
 	lock       sync.RWMutex
 	receiver   Receiver
@@ -66,11 +73,11 @@ type kubeWatcher struct {
 }
 
 func (kw *kubeWatcher) OnAdd(obj interface{}) {
-	kw.upsertIngress(obj)
+	kw.upsertIngress(kw.global, obj)
 }
 
 func (kw *kubeWatcher) OnUpdate(_, newObj interface{}) {
-	kw.upsertIngress(newObj)
+	kw.upsertIngress(kw.global, newObj)
 }
 
 func (kw *kubeWatcher) OnDelete(obj interface{}) {
@@ -85,8 +92,8 @@ func (kw *kubeWatcher) OnDelete(obj interface{}) {
 func (kw *kubeWatcher) runLogoFetcher(ctx context.Context) {
 	for {
 		for _, ing := range kw.items() {
-			if !ing.Hide && ing.LogoURL == "" && len(ing.URLs) > 0 {
-				ing.LogoURL = detectIconURL(ctx, ing.URLs[0])
+			if !ing.Hide && ing.LogoURL == "" && len(ing.Refs) > 0 {
+				ing.LogoURL = detectIconURL(ctx, ing.Refs[0].URL)
 				if ing.LogoURL != "" {
 					kw.updateLogo(ing)
 				}
@@ -109,10 +116,10 @@ func (kw *kubeWatcher) runWatcher(ctx context.Context, clientset *kubernetes.Cli
 	informer.Run(ctx.Done())
 }
 
-func (kw *kubeWatcher) upsertIngress(obj interface{}) {
+func (kw *kubeWatcher) upsertIngress(ctx context.Context, obj interface{}) {
 	defer kw.notify()
 	ing := obj.(*v12.Ingress)
-	ingress := inspectIngress(ing)
+	ingress := kw.inspectIngress(ctx, ing)
 
 	kw.lock.Lock()
 	defer kw.lock.Unlock()
@@ -149,7 +156,7 @@ func (kw *kubeWatcher) updateLogo(ingress Ingress) {
 	kw.cache[ingress.UID] = old
 }
 
-func inspectIngress(ing *v12.Ingress) Ingress {
+func (kw *kubeWatcher) inspectIngress(ctx context.Context, ing *v12.Ingress) Ingress {
 	return Ingress{
 		Name:        ing.Name,
 		Namespace:   ing.Namespace,
@@ -159,7 +166,7 @@ func inspectIngress(ing *v12.Ingress) Ingress {
 		Description: ing.Annotations[AnnoDescription],
 		LogoURL:     ing.Annotations[AnnoLogoURL],
 		Hide:        toBool(ing.Annotations[AnnoHide], false),
-		URLs:        toURLs(ing.Spec),
+		Refs:        kw.getRefs(ctx, ing),
 	}
 }
 
@@ -174,23 +181,49 @@ func toList(cache map[string]Ingress) []Ingress {
 	return cp
 }
 
-func toURLs(spec v12.IngressSpec) []string {
+func (kw *kubeWatcher) getRefs(ctx context.Context, ing *v12.Ingress) []Ref {
 	proto := "http://"
-	if len(spec.TLS) > 0 {
+	if len(ing.Spec.TLS) > 0 {
 		proto = "https://"
 	}
 
-	var urls []string
-	for _, rule := range spec.Rules {
+	var refs []Ref
+	for _, rule := range ing.Spec.Rules {
 		baseURL := proto + rule.Host
 		if rule.HTTP != nil {
 			for _, path := range rule.HTTP.Paths {
-				urls = append(urls, baseURL+path.Path)
+				var ref = Ref{
+					URL: baseURL + path.Path,
+				}
+				numPods, err := kw.getPodsNum(ctx, ing.Namespace, path.Backend.Service)
+				if err != nil {
+					log.Println("failed to get pods num for ingress", ing.Name, "in", ing.Namespace, "for path", path.Path, "-", err)
+				} else {
+					ref.Pods = numPods
+				}
+				refs = append(refs, ref)
 			}
 		}
 	}
+	return refs
+}
 
-	return urls
+func (kw *kubeWatcher) getPodsNum(ctx context.Context, ns string, svc *v12.IngressServiceBackend) (int, error) {
+	if svc == nil {
+		return 0, nil
+	}
+	info, err := kw.clientset.CoreV1().Services(ns).Get(ctx, svc.Name, v1.GetOptions{})
+	if err != nil {
+		return 0, fmt.Errorf("get service %s in %s: %w", svc.Name, ns, err)
+	}
+
+	var extHosts = len(info.Spec.ExternalIPs)
+	if extHosts == 0 && info.Spec.ExternalName != "" {
+		// reference by DNS to external host
+		extHosts = 1
+	}
+
+	return len(info.Spec.ClusterIPs) + extHosts, nil
 }
 
 func toBool(value string, defaultValue bool) bool {
