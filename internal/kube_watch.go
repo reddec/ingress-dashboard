@@ -142,11 +142,20 @@ func (kw *kubeWatcher) upsertIngress(ctx context.Context, obj interface{}) {
 
 	kw.lock.Lock()
 	defer kw.lock.Unlock()
-	// preserve discovered logo
-	oldLogoURL := kw.cache[ingress.UID].LogoURL
-	if oldLogoURL != "" && ingress.LogoURL == "" {
-		ingress.LogoURL = oldLogoURL
+
+	if oldIngress, exists := kw.cache[ingress.UID]; exists {
+		// preserve discovered logo
+		oldLogoURL := oldIngress.LogoURL
+		if oldLogoURL != "" && ingress.LogoURL == "" {
+			ingress.LogoURL = oldLogoURL
+		}
+
+		// preserve cert info as initial value
+		if !oldIngress.Cert.Expiration.IsZero() && ingress.Cert.Expiration.IsZero() {
+			ingress.Cert = oldIngress.Cert
+		}
 	}
+
 	kw.cache[ingress.UID] = ingress
 }
 
@@ -193,6 +202,8 @@ func (kw *kubeWatcher) updateCertInfo(ingress Ingress) {
 }
 
 func (kw *kubeWatcher) inspectIngress(ctx context.Context, ing *v12.Ingress) Ingress {
+	forceTLS := toBool(ing.Annotations[AnnoAssumeTLS], false)
+
 	return Ingress{
 		Class:       getClassName(ing),
 		Name:        ing.Name,
@@ -203,8 +214,8 @@ func (kw *kubeWatcher) inspectIngress(ctx context.Context, ing *v12.Ingress) Ing
 		Description: ing.Annotations[AnnoDescription],
 		LogoURL:     ing.Annotations[AnnoLogoURL],
 		Hide:        toBool(ing.Annotations[AnnoHide], false),
-		Refs:        kw.getRefs(ctx, ing),
-		TLS:         len(ing.Spec.TLS) > 0,
+		Refs:        kw.getRefs(ctx, ing, forceTLS),
+		TLS:         forceTLS || len(ing.Spec.TLS) > 0,
 	}
 }
 
@@ -220,7 +231,7 @@ func toList(cache map[string]Ingress) []Ingress {
 	return cp
 }
 
-func (kw *kubeWatcher) getRefs(ctx context.Context, ing *v12.Ingress) []Ref {
+func (kw *kubeWatcher) getRefs(ctx context.Context, ing *v12.Ingress, forceTLS bool) []Ref {
 	if staticURL, ok := ing.Annotations[AnnoURL]; ok {
 		podsNum, err := kw.getTotalPodsNum(ctx, ing)
 		if err != nil {
@@ -233,7 +244,6 @@ func (kw *kubeWatcher) getRefs(ctx context.Context, ing *v12.Ingress) []Ref {
 		}}
 	}
 
-	forceTLS := toBool(ing.Annotations[AnnoAssumeTLS], false)
 	proto := "http://"
 	if forceTLS || len(ing.Spec.TLS) > 0 {
 		proto = "https://"
@@ -320,12 +330,14 @@ func (kw *kubeWatcher) scanTLSCerts(ctx context.Context) {
 
 		info := fetchCertInfo(ctx, item)
 		if info == nil {
-			// no info fetched
+			log.Println("no cert info for", item.ID)
+
 			continue
 		}
 
 		item.Cert = *info
 		kw.updateCertInfo(item)
+		kw.receiver.Set(kw.items())
 	}
 	kw.receiver.Set(kw.items())
 }
