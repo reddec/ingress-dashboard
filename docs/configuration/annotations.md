@@ -119,3 +119,32 @@ Annotation: `ingress-dashboard/hide`
 Accepts `true` or `false` (default) string value.
 
 If it set to `true`, ingress-dashboard will not render it in UI and will skip logo-url detection logic.
+
+## URL
+
+Annotation: `ingress-dashboard/url`
+
+Custom ingress URL. Could be used with load-balancers or reverse-proxies when public URL not the same as ingress. Also,
+the provided URL will be used for TLS checks.
+
+```yaml
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: demo
+  annotations:
+    ingress-dashboard/url: "https://example.com"
+spec:
+  rules:
+    - host: demo.example.com
+      http:
+        paths:
+          - path: /foo/
+            pathType: Prefix
+            backend:
+              service:
+                name: my-service
+                port:
+                  number: 8080
+```

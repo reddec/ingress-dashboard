@@ -21,6 +21,7 @@ const (
 	AnnoLogoURL     = "ingress-dashboard/logo-url"
 	AnnoTitle       = "ingress-dashboard/title"
 	AnnoHide        = "ingress-dashboard/hide" // do not display ingress in dashboard
+	AnnoURL         = "ingress-dashboard/url"  // custom ingress URL (could be used with load-balancers or reverse-proxies)
 	syncInterval    = 30 * time.Second
 	tlsInterval     = time.Hour
 )
@@ -219,6 +220,17 @@ func toList(cache map[string]Ingress) []Ingress {
 }
 
 func (kw *kubeWatcher) getRefs(ctx context.Context, ing *v12.Ingress) []Ref {
+	if staticURL, ok := ing.Annotations[AnnoURL]; ok {
+		podsNum, err := kw.getTotalPodsNum(ctx, ing)
+		if err != nil {
+			log.Println("failed count pods:", err)
+		}
+
+		return []Ref{{
+			URL:  staticURL,
+			Pods: podsNum,
+		}}
+	}
 	proto := "http://"
 	if len(ing.Spec.TLS) > 0 {
 		proto = "https://"
@@ -244,6 +256,24 @@ func (kw *kubeWatcher) getRefs(ctx context.Context, ing *v12.Ingress) []Ref {
 	}
 
 	return refs
+}
+
+func (kw *kubeWatcher) getTotalPodsNum(ctx context.Context, ing *v12.Ingress) (int, error) {
+	var sum int
+	for _, rule := range ing.Spec.Rules {
+		if rule.HTTP == nil {
+			continue
+		}
+		for _, path := range rule.HTTP.Paths {
+			numPods, err := kw.getPodsNum(ctx, ing.Namespace, path.Backend.Service)
+			if err != nil {
+				return sum, fmt.Errorf("get pods num for ingress %s in %s for path %s: %w", ing.Name, ing.Namespace, path.Path, err)
+			}
+			sum += numPods
+		}
+	}
+
+	return sum, nil
 }
 
 func (kw *kubeWatcher) getPodsNum(ctx context.Context, namespace string, svc *v12.IngressServiceBackend) (int, error) {
