@@ -148,3 +148,35 @@ spec:
                 port:
                   number: 8080
 ```
+
+
+## Assume TLS (force TLS)
+
+Annotation: `ingress-dashboard/assume-tls`
+
+Accepts `true` or `false` (string) value. Default is `false`.
+
+If enabled, forcefully sets protocol to HTTPS. Could be useful in case of TLS termination on load-balancer or on
+reverse-proxies.
+
+```yaml
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: demo
+  annotations:
+    ingress-dashboard/assume-tls: "true"
+spec:
+  rules:
+    - host: demo.example.com
+      http:
+        paths:
+          - path: /foo/
+            pathType: Prefix
+            backend:
+              service:
+                name: my-service
+                port:
+                  number: 8080
+```

@@ -20,8 +20,9 @@ const (
 	AnnoDescription = "ingress-dashboard/description"
 	AnnoLogoURL     = "ingress-dashboard/logo-url"
 	AnnoTitle       = "ingress-dashboard/title"
-	AnnoHide        = "ingress-dashboard/hide" // do not display ingress in dashboard
-	AnnoURL         = "ingress-dashboard/url"  // custom ingress URL (could be used with load-balancers or reverse-proxies)
+	AnnoHide        = "ingress-dashboard/hide"       // do not display ingress in dashboard
+	AnnoURL         = "ingress-dashboard/url"        // custom ingress URL (could be used with load-balancers or reverse-proxies)
+	AnnoAssumeTLS   = "ingress-dashboard/assume-tls" // force protocol as HTTPS (for SSL termination on load-balancers)
 	syncInterval    = 30 * time.Second
 	tlsInterval     = time.Hour
 )
@@ -231,8 +232,10 @@ func (kw *kubeWatcher) getRefs(ctx context.Context, ing *v12.Ingress) []Ref {
 			Pods: podsNum,
 		}}
 	}
+
+	forceTLS := toBool(ing.Annotations[AnnoAssumeTLS], false)
 	proto := "http://"
-	if len(ing.Spec.TLS) > 0 {
+	if forceTLS || len(ing.Spec.TLS) > 0 {
 		proto = "https://"
 	}
 
