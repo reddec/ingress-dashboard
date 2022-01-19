@@ -20,3 +20,5 @@ Limitations:
 * Hosts number per Ingress calculated each Ingress update or after refresh (30s by default)
 
 ![image](https://user-images.githubusercontent.com/6597086/146317711-575b7be9-7fa9-47a4-90ee-5328393f4adc.png)
+
+![image](https://user-images.githubusercontent.com/6597086/150091202-9f8ba83d-22c0-4d66-be16-8a649a2f258d.png)

@@ -6,14 +6,17 @@ import (
 	"html/template"
 	"io"
 	"io/fs"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync/atomic"
 	"time"
 
 	"github.com/hako/durafmt"
+	"github.com/julienschmidt/httprouter"
 	"github.com/reddec/ingress-dashboard/internal/auth"
 	"github.com/reddec/ingress-dashboard/internal/static"
 	"gopkg.in/yaml.v3"
@@ -24,19 +27,19 @@ const (
 )
 
 type Ingress struct {
-	ID            string    `yaml:"-"`           // human readable ID (namespace with name)
-	UID           string    `yaml:"-"`           // machine readable ID (guid in Kube)
-	Title         string    `yaml:"-"`           // custom title in dashboard, overwrites Name
-	Name          string    `yaml:"name"`        // ingress name as in Kube
-	Namespace     string    `yaml:"namespace"`   // Kube namespace for ingress
-	Description   string    `yaml:"description"` // optional, human-readable description of Ingress
-	Hide          bool      `yaml:"-"`           // hidden Ingresses will not appear in UI
-	LogoURL       string    `yaml:"logo_url"`    // custom URL for icon
-	Class         string    `yaml:"-"`           // Ingress class
-	Static        bool      `yaml:"-"`
-	Refs          []Ref     `yaml:"-"`
-	TLS           bool      `yaml:"-"`
-	TLSExpiration time.Time `yaml:"-"`
+	ID          string   `yaml:"-"`           // human readable ID (namespace with name)
+	UID         string   `yaml:"-"`           // machine readable ID (guid in Kube)
+	Title       string   `yaml:"-"`           // custom title in dashboard, overwrites Name
+	Name        string   `yaml:"name"`        // ingress name as in Kube
+	Namespace   string   `yaml:"namespace"`   // Kube namespace for ingress
+	Description string   `yaml:"description"` // optional, human-readable description of Ingress
+	Hide        bool     `yaml:"-"`           // hidden Ingresses will not appear in UI
+	LogoURL     string   `yaml:"logo_url"`    // custom URL for icon
+	Class       string   `yaml:"-"`           // Ingress class
+	Static      bool     `yaml:"-"`
+	Refs        []Ref    `yaml:"-"`
+	TLS         bool     `yaml:"-"`
+	Cert        CertInfo `yaml:"-"`
 }
 
 type Ref struct {
@@ -78,15 +81,15 @@ func (ingress Ingress) HasDeadRefs() bool {
 }
 
 func (ingress Ingress) IsTLSExpired() bool {
-	return ingress.TLS && (time.Now().After(ingress.TLSExpiration))
+	return ingress.TLS && (time.Now().After(ingress.Cert.Expiration))
 }
 
 func (ingress Ingress) IsTLSSoonExpire() bool {
-	return ingress.TLS && (time.Until(ingress.TLSExpiration) < SoonExpiredInterval)
+	return ingress.TLS && (time.Until(ingress.Cert.Expiration) < SoonExpiredInterval)
 }
 
 func (ingress Ingress) WhenTLSExpires() string {
-	return durafmt.Parse(time.Until(ingress.TLSExpiration)).String()
+	return durafmt.Parse(time.Until(ingress.Cert.Expiration)).String()
 }
 
 type UIContext struct {
@@ -94,16 +97,29 @@ type UIContext struct {
 	User      *auth.User
 }
 
+type UIDetailsContext struct {
+	UIContext
+	Ingress     Ingress
+	ByNamespace map[string][]Ingress
+	Namespaces  []string
+}
+
 func New() *Service {
-	var router = http.NewServeMux()
+	var router = httprouter.New()
 	svc := &Service{
-		page:   template.Must(template.ParseFS(static.Templates, "assets/templates/*.gotemplate")),
-		router: router,
+		page:    template.Must(template.ParseFS(static.Templates, "assets/templates/index.gotemplate")),
+		details: template.Must(template.ParseFS(static.Templates, "assets/templates/details.gotemplate")),
+		router:  router,
 	}
-	sfs := http.FileServer(http.FS(static.Static()))
-	router.HandleFunc("/", svc.getIndex)
-	router.Handle("/static/", http.StripPrefix("/static", sfs))
-	router.Handle("/favicon.ico", sfs)
+	src := static.Static()
+	sfs := http.FS(src)
+	httpFS := http.FileServer(sfs)
+	router.GET("/", svc.getIndex)
+	router.GET("/details/:uid", svc.getDetails)
+	router.GET("/favicon.ico", func(writer http.ResponseWriter, request *http.Request, _ httprouter.Params) {
+		httpFS.ServeHTTP(writer, request)
+	})
+	router.ServeFiles("/static/*filepath", sfs)
 
 	return svc
 }
@@ -112,7 +128,8 @@ type Service struct {
 	cache   atomic.Value // []Ingress
 	prepend atomic.Value // []Ingres
 	page    *template.Template
-	router  *http.ServeMux
+	details *template.Template
+	router  http.Handler
 }
 
 func (svc *Service) Set(ingress []Ingress) {
@@ -145,12 +162,63 @@ func (svc *Service) getList() []Ingress {
 	return append(prepend, main...)
 }
 
-func (svc *Service) getIndex(writer http.ResponseWriter, request *http.Request) {
+func (svc *Service) getIndex(writer http.ResponseWriter, request *http.Request, _ httprouter.Params) {
 	writer.Header().Set("Content-Type", "text/html")
-	_ = svc.page.Execute(writer, UIContext{
+	if err := svc.page.Execute(writer, UIContext{
 		Ingresses: visibleIngresses(svc.getList()),
 		User:      auth.UserFromContext(request.Context()),
-	})
+	}); err != nil {
+		log.Println("failed render details page:", err)
+	}
+}
+func (svc *Service) getDetails(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
+	list := visibleIngresses(svc.getList())
+	var ingress Ingress
+	var found bool
+	uid := params.ByName("uid")
+	for _, ing := range list {
+		if ing.UID != uid {
+			continue
+		}
+		if ing.Static {
+			break // disable details for static members
+		}
+		found = true
+		ingress = ing
+
+		break
+	}
+	if !found {
+		http.NotFound(writer, request)
+
+		return
+	}
+
+	var byNamespaces = make(map[string][]Ingress, len(list))
+	for _, item := range list {
+		if !item.Static {
+			byNamespaces[item.Namespace] = append(byNamespaces[item.Namespace], item)
+		}
+	}
+
+	var namespaces = make([]string, 0, len(byNamespaces))
+	for ns := range byNamespaces {
+		namespaces = append(namespaces, ns)
+	}
+	sort.Strings(namespaces)
+
+	writer.Header().Set("Content-Type", "text/html")
+	if err := svc.details.Execute(writer, UIDetailsContext{
+		UIContext: UIContext{
+			Ingresses: list,
+			User:      auth.UserFromContext(request.Context()),
+		},
+		Ingress:     ingress,
+		ByNamespace: byNamespaces,
+		Namespaces:  namespaces,
+	}); err != nil {
+		log.Println("failed render details page:", err)
+	}
 }
 
 func visibleIngresses(list []Ingress) []Ingress {

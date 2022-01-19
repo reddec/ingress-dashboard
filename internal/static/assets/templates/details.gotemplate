@@ -1,0 +1,225 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="./../static/mvp.css">
+    <link rel="shortcut icon" href="./../favicon.ico" type="image/x-icon">
+    <title>Ingress Dashboard</title>
+</head>
+<body>
+{{with .User}}
+    <div class="top">
+        <span>Hello, {{.Name}}!</span>
+        <a href="./../logout">Logout</a>
+    </div>
+{{end}}
+<div class="left-menu">
+    <a href="./../">All ingresses</a>
+    <hr/>
+    {{range $ns := .Namespaces}}
+        <small>{{$ns}}</small><br/>
+        <ul style="margin-top: 0">
+            {{range $ingress := (index $.ByNamespace $ns)}}
+                {{if not $ingress.Static}}
+                    <li>
+                        {{if eq $ingress.UID $.Ingress.UID}}
+                            {{$ingress.Label}}
+                        {{else}}
+                            <a href="{{$ingress.UID}}">{{$ingress.Label}}</a>
+                        {{end}}
+                    </li>
+                {{end}}
+            {{end}}
+        </ul>
+    {{end}}
+</div>
+<div class="content">
+    <!-- general info -->
+    <form class="card">
+
+        <div class="header">
+            <div class="title">
+                {{with $.Ingress.Logo}}
+                    <h2>
+                        <img loading="lazy" src="{{.}}" alt="{{$.Ingress.ID}}">
+                    </h2>
+                {{end}}
+                {{with $.Ingress.Label}}
+                    <h2 class="hidden-link">{{.}}</h2>
+                {{end}}
+            </div>
+            {{with $.Ingress.Namespace}}
+                <small>namespace</small><br/>
+                <h3 style="margin-bottom: 0; margin-top: 0">
+                    {{.}}
+                </h3>
+            {{end}}
+        </div>
+        {{with $.Ingress.Description}}
+            <p class="description">
+                <small>description</small><br/>
+                {{.}}
+            </p>
+        {{end}}
+        <p class="description">
+            <small>ingress class</small><br/>
+            {{if $.Ingress.Class}}
+                <code>{{$.Ingress.Class}}</code>
+            {{else}}
+                <span class="warn" title="Ingress class should be defined">routed using default ingress</span>
+            {{end}}
+        </p>
+        <!-- links and pods -->
+        <div class="description">
+            <small>links</small><br/>
+            <ul style="margin-top: 0">
+                {{range $ref := $.Ingress.Refs}}
+                    <li>
+                        <a href="{{$ref.URL}}" target="_blank">
+                            {{- $ref.URL -}}
+                        </a>
+                        &nbsp;—&nbsp;{{- if $ref.Pods -}}
+                        served by {{$ref.Pods}} host{{if gt $ref.Pods 1}}s{{end}}
+                    {{- else -}}
+                        <span class="warn">no hosts!</span>
+                    {{- end -}}
+                    </li>
+                {{end}}
+            </ul>
+        </div>
+    </form>
+
+    <!-- TLS -->
+    {{if $.Ingress.TLS}}
+        <form class="card">
+            {{if $.Ingress.Cert.Expiration.IsZero}}
+                <span title="TLS enabled but status not yet known">TLS status unknown</span>
+            {{else}}
+                <p>
+                    <small>issuer</small><br/>
+                    {{$.Ingress.Cert.Issuer}}
+                </p>
+                <p>
+                    <small>subject(s)</small><br/>
+                    {{range $i, $subject := $.Ingress.Cert.Domains}}
+                        {{if $i}},{{end}}
+                        {{$subject}}
+                    {{end}}
+                </p>
+                <p>
+                    <small>certificate expiration</small><br/>
+                    {{$.Ingress.Cert.Expiration}}
+                </p>
+                {{if not $.Ingress.IsTLSExpired}}
+                    <p>
+                        <small>expires after</small><br/>
+                        {{$.Ingress.WhenTLSExpires}}
+                    </p>
+                {{end}}
+                {{if $.Ingress.IsTLSExpired}}
+                    <span class="warn"
+                          title="TLS certificate expired at {{$.Ingress.Cert.Expiration}}">❌ TLS expired</span>
+                {{else if $.Ingress.IsTLSSoonExpire}}
+                    Expires after {{$.Ingress.WhenTLSExpires}}
+                    <span class="danger" title="TLS certificate will expire after {{$.Ingress.WhenTLSExpires}}">🔔 TLS soon expire</span>
+                {{else}}
+                    <span class="success"
+                          title="TLS enabled, valid until {{$.Ingress.Cert.Expiration}}">🛡 TLS enabled️</span>
+                {{end}}
+            {{end}}
+        </form>
+    {{else}}
+        <form class="card">
+            <span class="warn" title="Insecure connections">🔓 TLS not enabled</span>
+        </form>
+    {{end}}
+
+</div>
+</body>
+<style>
+    .card {
+        margin: 0.5em;
+        max-width: calc(100% - 2em - 1em);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+
+    @media only screen and (max-width: 600px) {
+        .card {
+            width: calc(100% - 2em - 1em);
+        }
+    }
+
+    body {
+        display: flex;
+        flex-wrap: wrap;
+    }
+
+    .left-menu {
+        padding: 1em;
+    }
+
+    .content {
+        flex-grow: 1;
+        margin: 1em;
+    }
+
+    .card p {
+        max-width: 100%;
+    }
+
+    .title {
+        display: flex;
+        flex-wrap: nowrap;
+        align-items: center;
+    }
+
+    .title h2 {
+        margin-bottom: 0.2em;
+        margin-top: 0.2em;
+    }
+
+    .title img {
+        height: 1em;
+        width: 1em;
+        margin-right: 1em;
+    }
+
+    .header {
+        margin-bottom: 1em;
+    }
+
+    .top {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.5em;
+    }
+
+    .warn {
+        color: #804141;
+    }
+
+    .success {
+        color: #328132;
+    }
+
+    .danger {
+        color: #bbbb39;
+    }
+
+    .description {
+        padding-top: 0.1em;
+        padding-bottom: 0.1em;
+    }
+
+    table {
+        width: 100%;
+        display: table !important;
+    }
+
+    hr {
+        margin: 1em 0;
+    }
+</style>
+</html>

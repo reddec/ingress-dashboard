@@ -181,14 +181,14 @@ func (kw *kubeWatcher) updateLogo(ingress Ingress) {
 	kw.cache[ingress.UID] = old
 }
 
-func (kw *kubeWatcher) updateTLSExpiration(ingress Ingress) {
+func (kw *kubeWatcher) updateCertInfo(ingress Ingress) {
 	kw.lock.Lock()
 	defer kw.lock.Unlock()
 	old, exists := kw.cache[ingress.UID]
 	if !exists {
 		return
 	}
-	old.TLSExpiration = ingress.TLSExpiration
+	old.Cert = ingress.Cert
 	kw.cache[ingress.UID] = old
 }
 
@@ -313,46 +313,39 @@ func (kw *kubeWatcher) runCertsInfoCheck(ctx context.Context) {
 }
 
 func (kw *kubeWatcher) scanTLSCerts(ctx context.Context) {
-	var visited = map[string]time.Time{}
-
 	for _, item := range kw.items() {
 		if !item.TLS {
 			continue
 		}
-		var min time.Time
-		for _, u := range item.Refs {
-			if parsedURL, err := url.Parse(u.URL); err == nil {
-				host := parsedURL.Hostname()
 
-				if exp, ok := visited[host]; ok {
-					min = timeMin(min, exp)
-
-					continue
-				}
-
-				expiredAt, err := Expiration(ctx, host)
-				if err != nil {
-					log.Println("failed get expiration time", host, ":", err)
-
-					continue
-				}
-
-				if expiredAt.IsZero() {
-					// no expirations
-					continue
-				}
-
-				min = timeMin(min, expiredAt)
-				visited[host] = expiredAt
-			}
+		info := fetchCertInfo(ctx, item)
+		if info == nil {
+			// no info fetched
+			continue
 		}
 
-		if !min.IsZero() {
-			item.TLSExpiration = min
-			kw.updateTLSExpiration(item)
-		}
+		item.Cert = *info
+		kw.updateCertInfo(item)
 	}
 	kw.receiver.Set(kw.items())
+}
+
+func fetchCertInfo(ctx context.Context, item Ingress) *CertInfo {
+	for _, u := range item.Refs {
+		if parsedURL, err := url.Parse(u.URL); err == nil {
+			host := parsedURL.Hostname()
+			crtInfo, err := Expiration(ctx, host)
+			if err != nil {
+				log.Println("failed get expiration time", host, ":", err)
+
+				continue
+			}
+
+			return &crtInfo // stop on first ref
+		}
+	}
+
+	return nil
 }
 
 func toBool(value string, defaultValue bool) bool {
@@ -370,15 +363,4 @@ func getClassName(ing *v12.Ingress) string {
 	}
 
 	return ing.Annotations[anno]
-}
-
-func timeMin(valueA, valueB time.Time) time.Time {
-	if valueA.IsZero() {
-		return valueB
-	}
-	if valueB.After(valueA) {
-		return valueA
-	}
-
-	return valueB
 }

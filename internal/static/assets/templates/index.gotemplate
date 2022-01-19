@@ -29,7 +29,13 @@
                         </h2>
                     {{end}}
                     {{with $ingress.Label}}
-                        <h2>{{.}}</h2>
+                        <h2 class="hidden-link">
+                            {{if not $ingress.Static}}
+                                <a title="Show details" href="details/{{$ingress.UID}}">{{.}}</a>
+                            {{else}}
+                                {{.}}
+                            {{end}}
+                        </h2>
                     {{end}}
                 </div>
                 {{if not $ingress.Static}}
@@ -40,32 +46,32 @@
                     {{end}}
                 {{end}}
             </div>
-            <p class="description">{{$ingress.Description}}</article>
-                {{range $ref := $ingress.Refs}}
-        <p class="ref">
-            <a href="{{$ref.URL}}" target="_blank">{{$ref.URL}}</a>
-        </p>
-        {{- if not $ref.Static}}
-            {{if $ref.Pods}}
-                <p class="meta-info">
-                    {{$ref.Pods}} host{{if gt $ref.Pods 1}}s{{end}}
+            <p class="description">{{$ingress.Description}}</p>
+            {{range $ref := $ingress.Refs}}
+                <p class="ref">
+                    <a href="{{$ref.URL}}" target="_blank">{{$ref.URL}}</a>
                 </p>
-            {{else}}
-                <p class="meta-info {{if not $ref.Pods}}warn{{end}}">no hosts!</p>
-            {{end}}
-        {{- end}}
+                {{- if not $ref.Static}}
+                    {{if $ref.Pods}}
+                        <p class="meta-info">
+                            {{$ref.Pods}} host{{if gt $ref.Pods 1}}s{{end}}
+                        </p>
+                    {{else}}
+                        <p class="meta-info {{if not $ref.Pods}}warn{{end}}">no hosts!</p>
+                    {{end}}
+                {{- end}}
             {{end}}
             {{if not $ingress.Static}}
                 <div class="status-line">
                     {{if $ingress.TLS}}
-                        {{if $ingress.TLSExpiration.IsZero}}
+                        {{if $ingress.Cert.Expiration.IsZero}}
                             <span title="TLS enabled but status not yet known">TLS status unknown</span>
                         {{else if $ingress.IsTLSExpired}}
-                            <span class="warn" title="TLS certificate expired at {{$ingress.TLSExpiration}}">❌ TLS expired</span>
+                            <span class="warn" title="TLS certificate expired at {{$ingress.Cert.Expiration}}">❌ TLS expired</span>
                         {{else if $ingress.IsTLSSoonExpire}}
                             <span class="danger" title="TLS certificate will expire after {{$ingress.WhenTLSExpires}}">🔔 TLS soon expire</span>
                         {{else}}
-                            <span class="success" title="TLS enabled, valid until {{$ingress.TLSExpiration}}">🛡 TLS enabled️</span>
+                            <span class="success" title="TLS enabled, valid until {{$ingress.Cert.Expiration}}">🛡 TLS enabled️</span>
                         {{end}}
                     {{else}}
                         <span class="warn" title="Insecure connections">🔓 TLS not enabled</span>
@@ -175,6 +181,10 @@
     .description {
         padding-top: 0.5em;
         padding-bottom: 0.5em;
+    }
+
+    .hidden-link a {
+        color: inherit;
     }
 </style>
 </html>

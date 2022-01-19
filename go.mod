@@ -4,7 +4,9 @@ go 1.17
 
 require (
 	github.com/coreos/go-oidc/v3 v3.1.0
+	github.com/hako/durafmt v0.0.0-20210608085754-5c1018a4e16b
 	github.com/jessevdk/go-flags v1.5.0
+	github.com/julienschmidt/httprouter v1.3.0
 	github.com/reddec/run-http-server v0.0.0-20211110142919-824037361ead
 	github.com/stretchr/testify v1.7.0
 	golang.org/x/net v0.0.0-20210520170846-37e1c6afe023
@@ -23,7 +25,6 @@ require (
 	github.com/google/go-cmp v0.5.5 // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
 	github.com/googleapis/gnostic v0.5.5 // indirect
-	github.com/hako/durafmt v0.0.0-20210608085754-5c1018a4e16b // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/imdario/mergo v0.3.5 // indirect
